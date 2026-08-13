@@ -24,7 +24,12 @@ import {
   Sheet,
   SheetHeader,
 } from "../components/ui";
-import { BODY_PARTS, type BodyPart } from "../lib/generateWorkout";
+import {
+  BODY_PARTS,
+  exerciseLocation,
+  type BodyPart,
+  type ExerciseLocation,
+} from "../lib/generateWorkout";
 import { templateLoad } from "../lib/recommend";
 import ManagePlanSheet from "../components/ManagePlanSheet";
 import {
@@ -79,6 +84,22 @@ const KINDS: { key: KindKey; label: string; sub: string }[] = [
   { key: "standard", label: "Standard", sub: "work through the sets" },
 ];
 
+/**
+ * Where a workout can be done. Home-friendly means *every* movement in it
+ * works without gym equipment — one cable fly makes the whole session a gym
+ * session, which is the answer you need when deciding what to do tonight.
+ *
+ * Only the exercise name is available on a template's sets, so equipment is
+ * inferred from that; it's the same rule the generator uses.
+ */
+function locationOf(t: WorkoutTemplate): ExerciseLocation {
+  const sets = t.plannedSets ?? [];
+  if (!sets.length) return "home";
+  return sets.some((s) => exerciseLocation({ name: s.exerciseName }) === "gym")
+    ? "gym"
+    : "home";
+}
+
 function formatOf(t: WorkoutTemplate): KindKey {
   if (t.format === "amrap") return "benchmark";
   if (t.format === "flow") return "guided";
@@ -130,6 +151,7 @@ export default function Library() {
   const [part, setPart] = useState<BodyPart | "any">("any");
   const [kind, setKind] = useState<KindKey>("any");
   const [when, setWhen] = useState<WhenKey>("any");
+  const [loc, setLoc] = useState<ExerciseLocation | "any">("any");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Pick mode — when Today's empty slot deep-links here, we filter to the
@@ -217,9 +239,19 @@ export default function Library() {
       if (part !== "any" && templateLoad(t)[part] === 0) return false;
       if (kind !== "any" && formatOf(t) !== kind) return false;
       if (when !== "any" && whenOf(t) !== when) return false;
+      if (loc !== "any" && locationOf(t) !== loc) return false;
       return true;
     });
-  }, [categoryTemplates, query, duration, part, kind, when]);
+  }, [categoryTemplates, query, duration, part, kind, when, loc]);
+
+  const locCounts = useMemo(() => {
+    let gym = 0, home = 0;
+    for (const t of categoryTemplates) {
+      if (locationOf(t) === "gym") gym += 1;
+      else home += 1;
+    }
+    return { gym, home };
+  }, [categoryTemplates]);
 
   const whenCounts = useMemo(() => {
     const counts: Record<WhenKey, number> = {
@@ -244,7 +276,8 @@ export default function Library() {
     (duration !== "any" ? 1 : 0) +
     (part !== "any" ? 1 : 0) +
     (kind !== "any" ? 1 : 0) +
-    (when !== "any" ? 1 : 0);
+    (when !== "any" ? 1 : 0) +
+    (loc !== "any" ? 1 : 0);
 
   // How many workouts in this tab train each body part — shown on the rail so
   // an empty filter is obvious before you tap it.
@@ -805,6 +838,7 @@ export default function Library() {
                     setPart("any");
                     setKind("any");
                     setWhen("any");
+                    setLoc("any");
                   }}
                   className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
                 >
@@ -827,6 +861,31 @@ export default function Library() {
                     trailing={kind === k.key ? <Tick /> : undefined}
                   />
                 ))}
+              </Group>
+            </section>
+
+            <section>
+              <SectionHeader title="Where" />
+              <Group>
+                <Row
+                  title="Anywhere"
+                  onClick={() => setLoc("any")}
+                  trailing={loc === "any" ? <Tick /> : undefined}
+                />
+                <Row
+                  title="Home"
+                  subtitle="Nothing that needs a gym"
+                  value={String(locCounts.home)}
+                  onClick={() => setLoc("home")}
+                  trailing={loc === "home" ? <Tick /> : undefined}
+                />
+                <Row
+                  title="Gym"
+                  subtitle="Needs machines, cables or a barbell"
+                  value={String(locCounts.gym)}
+                  onClick={() => setLoc("gym")}
+                  trailing={loc === "gym" ? <Tick /> : undefined}
+                />
               </Group>
             </section>
 

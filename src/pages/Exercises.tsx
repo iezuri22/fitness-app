@@ -21,7 +21,13 @@ import {
   Switch,
   Tag,
 } from "../components/ui";
-import { BODY_PARTS, bodyPartsForName, type BodyPart } from "../lib/generateWorkout";
+import {
+  BODY_PARTS,
+  bodyPartsForName,
+  exerciseLocation,
+  type BodyPart,
+  type ExerciseLocation,
+} from "../lib/generateWorkout";
 import ExerciseGif from "../components/ExerciseGif";
 import { findGifForName } from "../lib/exerciseGifs";
 import type { Exercise, ExerciseCategory } from "../lib/types";
@@ -45,6 +51,7 @@ export default function Exercises() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<ExerciseCategory | "All">("All");
   const [part, setPart] = useState<BodyPart | "All">("All");
+  const [loc, setLoc] = useState<ExerciseLocation | "All">("All");
   const [onlyMissingGif, setOnlyMissingGif] = useState(false);
   // The library runs to several hundred entries; mounting every row (each with
   // its own demo image) is what made this tab slow to open. Render a page at a
@@ -72,16 +79,17 @@ export default function Exercises() {
     return items.filter((e) => {
       if (cat !== "All" && e.category !== cat) return false;
       if (part !== "All" && !bodyPartsForName(e.name).includes(part)) return false;
+      if (loc !== "All" && exerciseLocation(e) !== loc) return false;
       if (ql && !e.name.toLowerCase().includes(ql)) return false;
       if (onlyMissingGif && (e.gifUrl || findGifForName(e.name))) return false;
       return true;
     });
-  }, [items, q, cat, part, onlyMissingGif]);
+  }, [items, q, cat, part, loc, onlyMissingGif]);
 
   // Any change to the filters means the old offset is meaningless.
   useEffect(() => {
     setVisible(PAGE);
-  }, [q, cat, part, onlyMissingGif]);
+  }, [q, cat, part, loc, onlyMissingGif]);
 
   // Counts respect the category filter but not the body-part one, so the rail
   // shows what each option would give you rather than what's selected now.
@@ -92,8 +100,20 @@ export default function Exercises() {
     return counts;
   }, [items, cat]);
 
+  const locCounts = useMemo(() => {
+    let gym = 0, home = 0;
+    for (const e of items ?? []) {
+      if (exerciseLocation(e) === "gym") gym += 1;
+      else home += 1;
+    }
+    return { gym, home };
+  }, [items]);
+
   const activeFilters =
-    (cat !== "All" ? 1 : 0) + (part !== "All" ? 1 : 0) + (onlyMissingGif ? 1 : 0);
+    (cat !== "All" ? 1 : 0) +
+    (part !== "All" ? 1 : 0) +
+    (loc !== "All" ? 1 : 0) +
+    (onlyMissingGif ? 1 : 0);
 
   const missingGifCount = useMemo(() => {
     if (!items) return 0;
@@ -257,6 +277,7 @@ export default function Exercises() {
                   onClick={() => {
                     setCat("All");
                     setPart("All");
+                    setLoc("All");
                     setOnlyMissingGif(false);
                   }}
                   className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
@@ -267,6 +288,31 @@ export default function Exercises() {
             }
           />
           <div className="space-y-5 overflow-y-auto px-4 pb-8 pt-2">
+            <section>
+              <SectionHeader title="Where" />
+              <Group>
+                <Row
+                  title="Anywhere"
+                  onClick={() => setLoc("All")}
+                  trailing={loc === "All" ? <Tick /> : undefined}
+                />
+                <Row
+                  title="Home"
+                  subtitle="No gym equipment needed"
+                  value={String(locCounts.home)}
+                  onClick={() => setLoc("home")}
+                  trailing={loc === "home" ? <Tick /> : undefined}
+                />
+                <Row
+                  title="Gym only"
+                  subtitle="Machines, cables, barbells"
+                  value={String(locCounts.gym)}
+                  onClick={() => setLoc("gym")}
+                  trailing={loc === "gym" ? <Tick /> : undefined}
+                />
+              </Group>
+            </section>
+
             <section>
               <SectionHeader title="Body part" />
               <Group>

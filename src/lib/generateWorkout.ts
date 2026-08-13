@@ -130,9 +130,29 @@ function familyOf(name: string): string | null {
 
 const MAX_PER_FAMILY = 2;
 
-function needsGym(ex: Exercise): boolean {
+/**
+ * Where an exercise can be done.
+ *
+ * "gym" means it needs equipment you only find in a commercial gym; "home"
+ * means it needs nothing you can't have at home — which also means it works
+ * at the gym. So filtering to "home" is really "works anywhere".
+ *
+ * Exported so the filters and the generator classify identically; a movement
+ * that the generator refuses to put in a home workout should also disappear
+ * when you filter the library to home.
+ */
+export type ExerciseLocation = "gym" | "home";
+
+export function exerciseLocation(ex: {
+  name: string;
+  equipment?: string[];
+}): ExerciseLocation {
   const hay = norm(`${ex.name} ${(ex.equipment ?? []).join(" ")}`);
-  return GYM_ONLY.some((w) => hasPhrase(hay, w));
+  return GYM_ONLY.some((w) => hasPhrase(hay, w)) ? "gym" : "home";
+}
+
+function needsGym(ex: Exercise): boolean {
+  return exerciseLocation(ex) === "gym";
 }
 
 function isCompound(ex: Exercise): boolean {

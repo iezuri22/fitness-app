@@ -52,9 +52,6 @@ export default function Vitamins() {
       setItems(defs);
       setTaken(log);
       setHistory(hist);
-      // Nothing set up yet — open straight into the editor rather than showing
-      // an empty checklist and making them hunt for the way in.
-      if (defs.length === 0) setEditing(true);
     })();
     return () => {
       alive = false;

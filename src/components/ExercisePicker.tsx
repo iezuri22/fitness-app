@@ -1,8 +1,14 @@
 import { useMemo, useState } from "react";
 import type { Exercise } from "../lib/types";
 import ExerciseGif from "./ExerciseGif";
-import { ChipRail, Tag } from "./ui";
-import { BODY_PARTS, bodyPartsForName, type BodyPart } from "../lib/generateWorkout";
+import { ChipRail, Segmented, Tag } from "./ui";
+import {
+  BODY_PARTS,
+  bodyPartsForName,
+  exerciseLocation,
+  type BodyPart,
+  type ExerciseLocation,
+} from "../lib/generateWorkout";
 
 /**
  * Modal for picking an exercise from the catalog to add to the current
@@ -24,6 +30,7 @@ export default function ExercisePicker({
 }) {
   const [query, setQuery] = useState("");
   const [part, setPart] = useState<BodyPart | "all">("all");
+  const [loc, setLoc] = useState<ExerciseLocation | "all">("all");
 
   const partCounts = useMemo(() => {
     const counts = Object.fromEntries(BODY_PARTS.map((b) => [b.key, 0])) as Record<BodyPart, number>;
@@ -39,13 +46,16 @@ export default function ExercisePicker({
     if (part !== "all") {
       list = list.filter((e) => bodyPartsForName(e.name).includes(part));
     }
+    if (loc !== "all") {
+      list = list.filter((e) => exerciseLocation(e) === loc);
+    }
     return [...list].sort((a, b) => {
       const aPT = a.isPT ? 0 : 1;
       const bPT = b.isPT ? 0 : 1;
       if (aPT !== bPT) return aPT - bPT;
       return a.name.localeCompare(b.name);
     });
-  }, [exercises, query, part]);
+  }, [exercises, query, part, loc]);
 
   return (
     <div
@@ -77,6 +87,15 @@ export default function ExercisePicker({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exercises…"
             className="h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] outline-none placeholder:text-[color:var(--color-muted-2)] focus:bg-[color:var(--color-surface-3)]"
+          />
+          <Segmented<ExerciseLocation | "all">
+            value={loc}
+            onChange={setLoc}
+            options={[
+              { value: "all", label: "Anywhere" },
+              { value: "home", label: "Home" },
+              { value: "gym", label: "Gym" },
+            ]}
           />
           <ChipRail<BodyPart | "all">
             className="[&>div]:-mx-4 [&>div]:px-4"
