@@ -46,6 +46,25 @@ type SlotPick = "morning-pt" | "strength";
 type TabKey = "pt" | "strength";
 type DurationKey = "any" | "short" | "medium" | "long";
 type KindKey = "any" | "benchmark" | "guided" | "standard";
+type WhenKey = "any" | "morning" | "evening";
+
+/**
+ * Time-of-day, read off the naming convention the starter pack uses ("AM · …",
+ * "PM · …") with a fallback to the focus text, so hand-made routines named
+ * "Morning mobility" are still found.
+ */
+const WHENS: { key: WhenKey; label: string; sub: string }[] = [
+  { key: "any", label: "Any time", sub: "" },
+  { key: "morning", label: "Morning", sub: "wake-up and pre-gym routines" },
+  { key: "evening", label: "Evening", sub: "wind-down and night routines" },
+];
+
+function whenOf(t: WorkoutTemplate): WhenKey {
+  const hay = `${t.name} ${t.focus}`.toLowerCase();
+  if (/^am ·|\bam ·|morning|wake.?up|pre.?gym/.test(hay)) return "morning";
+  if (/^pm ·|\bpm ·|evening|wind.?down|night|bed/.test(hay)) return "evening";
+  return "any";
+}
 
 /**
  * How a workout runs, phrased for someone who's never seen "AMRAP" before.
@@ -110,6 +129,7 @@ export default function Library() {
   const [duration, setDuration] = useState<DurationKey>("any");
   const [part, setPart] = useState<BodyPart | "any">("any");
   const [kind, setKind] = useState<KindKey>("any");
+  const [when, setWhen] = useState<WhenKey>("any");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Pick mode — when Today's empty slot deep-links here, we filter to the
@@ -196,9 +216,21 @@ export default function Library() {
       }
       if (part !== "any" && templateLoad(t)[part] === 0) return false;
       if (kind !== "any" && formatOf(t) !== kind) return false;
+      if (when !== "any" && whenOf(t) !== when) return false;
       return true;
     });
-  }, [categoryTemplates, query, duration, part, kind]);
+  }, [categoryTemplates, query, duration, part, kind, when]);
+
+  const whenCounts = useMemo(() => {
+    const counts: Record<WhenKey, number> = {
+      any: categoryTemplates.length, morning: 0, evening: 0,
+    };
+    for (const t of categoryTemplates) {
+      const w = whenOf(t);
+      if (w !== "any") counts[w] += 1;
+    }
+    return counts;
+  }, [categoryTemplates]);
 
   const kindCounts = useMemo(() => {
     const counts: Record<KindKey, number> = {
@@ -209,7 +241,10 @@ export default function Library() {
   }, [categoryTemplates]);
 
   const activeFilters =
-    (duration !== "any" ? 1 : 0) + (part !== "any" ? 1 : 0) + (kind !== "any" ? 1 : 0);
+    (duration !== "any" ? 1 : 0) +
+    (part !== "any" ? 1 : 0) +
+    (kind !== "any" ? 1 : 0) +
+    (when !== "any" ? 1 : 0);
 
   // How many workouts in this tab train each body part — shown on the rail so
   // an empty filter is obvious before you tap it.
@@ -769,6 +804,7 @@ export default function Library() {
                     setDuration("any");
                     setPart("any");
                     setKind("any");
+                    setWhen("any");
                   }}
                   className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
                 >
@@ -789,6 +825,22 @@ export default function Library() {
                     value={k.key === "any" ? undefined : String(kindCounts[k.key])}
                     onClick={() => setKind(k.key)}
                     trailing={kind === k.key ? <Tick /> : undefined}
+                  />
+                ))}
+              </Group>
+            </section>
+
+            <section>
+              <SectionHeader title="Time of day" />
+              <Group>
+                {WHENS.map((w) => (
+                  <Row
+                    key={w.key}
+                    title={w.label}
+                    subtitle={w.sub || undefined}
+                    value={w.key === "any" ? undefined : String(whenCounts[w.key])}
+                    onClick={() => setWhen(w.key)}
+                    trailing={when === w.key ? <Tick /> : undefined}
                   />
                 ))}
               </Group>

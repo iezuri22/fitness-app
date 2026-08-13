@@ -652,21 +652,40 @@ function SetMiniRow({
       <span className="shrink-0 w-5 text-[11px] font-bold text-[color:var(--color-muted-2)] tabular-nums">
         {index}
       </span>
-      {/* Reps */}
-      <label className="flex items-center gap-1 min-w-0">
-        <input
-          type="number"
-          inputMode="numeric"
-          min={0}
-          value={set.targetReps}
-          onChange={(e) =>
-            onPatch({ targetReps: Math.max(0, Number(e.target.value) || 0) })
-          }
-          onClick={(e) => e.stopPropagation()}
-          className="w-14 bg-[color:var(--color-surface)] border border-[color:var(--color-border)] rounded px-1.5 py-1 text-sm tabular-nums text-center"
-        />
-        <span className="text-[10px] text-[color:var(--color-muted-2)] uppercase">reps</span>
-      </label>
+      {/* Reps — or minutes, when the set is measured on a clock. */}
+      {set.workSeconds != null ? (
+        <label className="flex min-w-0 items-center gap-1">
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={Math.round(set.workSeconds / 60)}
+            onChange={(e) =>
+              onPatch({
+                workSeconds: Math.max(0, Number(e.target.value) || 0) * 60,
+              })
+            }
+            onClick={(e) => e.stopPropagation()}
+            className="w-14 rounded border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-1.5 py-1 text-center text-sm tnum"
+          />
+          <span className="text-[10px] text-[color:var(--color-muted-2)]">min</span>
+        </label>
+      ) : (
+        <label className="flex min-w-0 items-center gap-1">
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={set.targetReps}
+            onChange={(e) =>
+              onPatch({ targetReps: Math.max(0, Number(e.target.value) || 0) })
+            }
+            onClick={(e) => e.stopPropagation()}
+            className="w-14 rounded border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-1.5 py-1 text-center text-sm tnum"
+          />
+          <span className="text-[10px] text-[color:var(--color-muted-2)]">reps</span>
+        </label>
+      )}
       {/* Weight */}
       <label className="flex items-center gap-1 min-w-0">
         <input

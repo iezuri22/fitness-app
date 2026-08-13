@@ -386,7 +386,6 @@ function ExercisePicker({
             </button>
           </div>
           <Input
-            autoFocus
             placeholder="Search…"
             value={q}
             onChange={(e) => setQ(e.target.value)}

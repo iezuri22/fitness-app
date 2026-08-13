@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import type { Exercise } from "../lib/types";
 import ExerciseGif from "./ExerciseGif";
-import { Tag } from "./ui";
+import { ChipRail, Tag } from "./ui";
+import { BODY_PARTS, bodyPartsForName, type BodyPart } from "../lib/generateWorkout";
 
 /**
  * Modal for picking an exercise from the catalog to add to the current
@@ -22,19 +23,29 @@ export default function ExercisePicker({
   title?: string;
 }) {
   const [query, setQuery] = useState("");
+  const [part, setPart] = useState<BodyPart | "all">("all");
+
+  const partCounts = useMemo(() => {
+    const counts = Object.fromEntries(BODY_PARTS.map((b) => [b.key, 0])) as Record<BodyPart, number>;
+    for (const e of exercises) for (const bp of bodyPartsForName(e.name)) counts[bp] += 1;
+    return counts;
+  }, [exercises]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q
+    let list = q
       ? exercises.filter((e) => e.name.toLowerCase().includes(q))
       : exercises;
+    if (part !== "all") {
+      list = list.filter((e) => bodyPartsForName(e.name).includes(part));
+    }
     return [...list].sort((a, b) => {
       const aPT = a.isPT ? 0 : 1;
       const bPT = b.isPT ? 0 : 1;
       if (aPT !== bPT) return aPT - bPT;
       return a.name.localeCompare(b.name);
     });
-  }, [exercises, query]);
+  }, [exercises, query, part]);
 
   return (
     <div
@@ -59,14 +70,26 @@ export default function ExercisePicker({
             </svg>
           </button>
         </div>
-        <div className="border-b border-[color:var(--color-separator)] p-4">
+        <div className="space-y-3 border-b border-[color:var(--color-separator)] p-4">
           <input
             type="search"
-            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exercises…"
             className="h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] outline-none placeholder:text-[color:var(--color-muted-2)] focus:bg-[color:var(--color-surface-3)]"
+          />
+          <ChipRail<BodyPart | "all">
+            className="[&>div]:-mx-4 [&>div]:px-4"
+            value={part}
+            onChange={setPart}
+            options={[
+              { value: "all" as const, label: "All" },
+              ...BODY_PARTS.map((b) => ({
+                value: b.key,
+                label: b.label,
+                count: partCounts[b.key],
+              })),
+            ]}
           />
         </div>
         <div className="flex-1 overflow-y-auto">

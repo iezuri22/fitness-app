@@ -9,6 +9,9 @@ import type { PlannedSet, Workout, WorkoutTemplate } from "./types";
  */
 export function setEstimatedMinutes(s: PlannedSet): number {
   if (typeof s.estimatedMinutes === "number") return s.estimatedMinutes;
+  // A set with a clock on it takes exactly that long. Falling through to the
+  // flat 2-minute guess made 30-second holds read as "~2m".
+  if (typeof s.workSeconds === "number" && s.workSeconds > 0) return s.workSeconds / 60;
   if (isCardioName(s.exerciseName)) return s.targetReps;
   return 2;
 }
@@ -69,8 +72,25 @@ const TIME_BASED_PHRASES = [
   "running",
   "jog",
   "cycling",
-  "sled push",
-  "sled drag",
+];
+
+/**
+ * Names that look time-based but aren't.
+ *
+ * Sleds are counted in trips, not minutes — real data has them at
+ * `targetReps: 1`, which a duration conversion would read as "1 minute" or
+ * worse. And "Walk Out" is a banded rotator-cuff drill; matching it on "walk"
+ * turned a rehab exercise into a ten-minute cardio block.
+ */
+const NOT_TIME_BASED = [
+  "sled",
+  "walk out",
+  "walkout",
+  "wall walk",
+  "farmer",
+  "suitcase",
+  "carry",
+  "lunge",
 ];
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -82,9 +102,13 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
  */
 export function isTimeBasedExercise(name: string): boolean {
   const n = ` ${norm(name)} `;
+  if (NOT_TIME_BASED.some((p) => n.includes(p))) return false;
   if (TIME_BASED_PHRASES.some((p) => n.includes(` ${p} `))) return true;
-  // "Walk" on its own is cardio; "Farmer Walk" and "Walking Lunge" are not.
-  if (/\b(walk|walking)\b/.test(n) && !/farmer|lunge|suitcase|carry/.test(n)) return true;
+  // Plain "Walk" / "Walking" is cardio, but only on its own — every compound
+  // ("Walking Lunge", "Farmer's Walk") is a loaded movement and is excluded
+  // above.
+  const bare = norm(name);
+  if (bare === "walk" || bare === "walking") return true;
   return false;
 }
 

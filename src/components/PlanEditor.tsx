@@ -25,6 +25,19 @@ import {
  *
  * Used by both Today (pre-workout edit) and WorkoutDetail (planned detail).
  */
+/**
+ * How a set reads in a summary. A treadmill or rower set carries a duration,
+ * not reps — showing "8 reps" for an 8-minute block is actively misleading,
+ * which is exactly how it looked before.
+ */
+function setLabel(s: PlannedSet): string {
+  if (s.workSeconds == null) return `${s.targetReps} reps`;
+  const m = Math.floor(s.workSeconds / 60);
+  const sec = s.workSeconds % 60;
+  if (m && sec) return `${m}m ${sec}s`;
+  return m ? `${m} min` : `${sec}s`;
+}
+
 export default function PlanEditor({
   workout,
   exercises,
@@ -356,9 +369,11 @@ function PlanBlock({
                           <>
                             <span className="text-[color:var(--color-muted)]">
                               <span className="font-semibold text-white">
-                                {s.targetReps} reps
+                                {setLabel(s)}
                               </span>
-                              {s.targetWeight ? <> @ {s.targetWeight}lb</> : null}
+                              {s.workSeconds == null && s.targetWeight ? (
+                                <> @ {s.targetWeight}lb</>
+                              ) : null}
                             </span>
                             <span className="rounded bg-[color:var(--color-surface-2)] px-1.5 py-0.5 text-[12px] tnum text-[color:var(--color-muted-2)]">
                               ~{formatMinutes(setEstimatedMinutes(s))}m
@@ -499,8 +514,10 @@ function EditablePlannedSetRow({
         <div className="text-[color:var(--color-muted)]">Set {index + 1}</div>
         <div className="flex items-center gap-2">
           <span className="tabular-nums text-[color:var(--color-muted)]">
-            <span className="font-semibold text-white">{set.targetReps} reps</span>
-            {set.targetWeight ? <> @ {set.targetWeight}lb</> : null}
+            <span className="font-semibold text-white">{setLabel(set)}</span>
+            {set.workSeconds == null && set.targetWeight ? (
+              <> @ {set.targetWeight}lb</>
+            ) : null}
           </span>
           <span className="rounded bg-[color:var(--color-surface-2)] px-1.5 py-0.5 text-[12px] tnum text-[color:var(--color-muted-2)]">
             ~{formatMinutes(setEstimatedMinutes(set))}m
