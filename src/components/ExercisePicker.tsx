@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Exercise } from "../lib/types";
 import ExerciseGif from "./ExerciseGif";
-import { ChipRail, Segmented, Tag } from "./ui";
+import { Button, ChipRail, Segmented, Tag } from "./ui";
 import {
   BODY_PARTS,
   bodyPartsForName,
@@ -9,6 +9,13 @@ import {
   type BodyPart,
   type ExerciseLocation,
 } from "../lib/generateWorkout";
+
+/**
+ * Rows rendered per page. Same as the Exercises tab — the catalog runs to
+ * several hundred entries and each row mounts its own demo image, which is
+ * slow enough to notice when you open this mid-workout.
+ */
+const PAGE = 40;
 
 /**
  * Modal for picking an exercise from the catalog to add to the current
@@ -31,6 +38,7 @@ export default function ExercisePicker({
   const [query, setQuery] = useState("");
   const [part, setPart] = useState<BodyPart | "all">("all");
   const [loc, setLoc] = useState<ExerciseLocation | "all">("all");
+  const [visible, setVisible] = useState(PAGE);
 
   const partCounts = useMemo(() => {
     const counts = Object.fromEntries(BODY_PARTS.map((b) => [b.key, 0])) as Record<BodyPart, number>;
@@ -56,6 +64,11 @@ export default function ExercisePicker({
       return a.name.localeCompare(b.name);
     });
   }, [exercises, query, part, loc]);
+
+  // Any change to the filters makes the old offset meaningless.
+  useEffect(() => {
+    setVisible(PAGE);
+  }, [query, part, loc]);
 
   return (
     <div
@@ -118,7 +131,7 @@ export default function ExercisePicker({
             </div>
           ) : (
             <ul className="divide-y divide-[color:var(--color-separator)]">
-              {filtered.map((ex) => {
+              {filtered.slice(0, visible).map((ex) => {
                 const already = existingExerciseIds.has(ex.id);
                 return (
                   <li key={ex.id}>
@@ -140,6 +153,21 @@ export default function ExercisePicker({
                 );
               })}
             </ul>
+          )}
+
+          {filtered.length > visible && (
+            <div className="p-4">
+              <Button
+                variant="secondary"
+                block
+                onClick={() => setVisible((v) => v + PAGE)}
+              >
+                Show {Math.min(PAGE, filtered.length - visible)} more
+                <span className="text-[color:var(--color-muted)]">
+                  ({visible} of {filtered.length})
+                </span>
+              </Button>
+            </div>
           )}
         </div>
       </div>
