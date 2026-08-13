@@ -429,7 +429,7 @@ export default function Library() {
     : (t: WorkoutTemplate) => setEditing(t);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* HEADER */}
       {picking ? (
         <PageHeader
@@ -618,7 +618,7 @@ export default function Library() {
           }
         />
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* When filtering, the focus-area grouping just adds noise — show one
               flat, ranked list instead. */}
           {filtering ? (
@@ -1050,7 +1050,7 @@ function TemplateCard({
       type="button"
       onClick={onTap}
       disabled={anyStarting}
-      className={`w-full rounded-[14px] p-4 text-left transition-colors ${
+      className={`w-full rounded-[12px] p-3 text-left transition-colors ${
         isStarting
           ? "bg-[color:var(--color-surface-2)]"
           : "bg-[color:var(--color-surface)] active:bg-[color:var(--color-surface-2)]"
@@ -1058,7 +1058,7 @@ function TemplateCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+          <div className="text-[16px] font-semibold leading-tight tracking-[-0.01em]">
             {template.name}
           </div>
           <div className="mt-0.5 truncate text-[13px] text-[color:var(--color-muted)]">
@@ -1070,14 +1070,14 @@ function TemplateCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="mt-2.5 flex items-center justify-between gap-3">
         {/* Overlapping exercise-demo collage — shows at a glance what's in it */}
         <div className="flex items-center">
           {shown.map((ex) => (
             <MiniThumb key={ex.id} name={ex.name} gifUrl={gifByExerciseId.get(ex.id)} />
           ))}
           {extra > 0 && (
-            <div className="-ml-2.5 grid size-9 shrink-0 place-items-center rounded-full bg-[color:var(--color-surface-2)] text-[11px] tnum text-[color:var(--color-muted)] ring-2 ring-[color:var(--color-surface)]">
+            <div className="-ml-2 grid size-8 shrink-0 place-items-center rounded-full bg-[color:var(--color-surface-2)] text-[11px] tnum text-[color:var(--color-muted)] ring-2 ring-[color:var(--color-surface)]">
               +{extra}
             </div>
           )}

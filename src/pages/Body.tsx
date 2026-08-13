@@ -30,7 +30,7 @@ export default function Body() {
 
 function BodyIndex() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader title="Body" subtitle="How each area works, and how to train it" />
       <Group>
         {BODY_PARTS.map((b) => (
@@ -87,7 +87,7 @@ function BodyPartDetail({ part }: { part: BodyPart }) {
   }, [items, part]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Link
         to="/body"
         className="-ml-1 inline-flex items-center gap-1 text-[16px] text-[color:var(--color-accent)] active:opacity-60"

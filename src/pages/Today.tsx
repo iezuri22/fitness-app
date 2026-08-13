@@ -189,7 +189,7 @@ export default function Today() {
   if (recentWorkouts === undefined) return <PageSkeleton rows={4} />;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-4">
       <PageHeader title="Today" subtitle={longDate(today)} />
 
       {error && (

@@ -129,7 +129,7 @@ export default function Settings() {
   const allSaved = !!demoUrls && cachedCount >= demoUrls.length;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-4">
       <PageHeader title="Settings" />
 
       <section>

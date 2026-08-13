@@ -102,7 +102,7 @@ export default function Recommend() {
   if (templates === undefined) return <PageSkeleton rows={4} />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title="What should I do?"
         subtitle="Tell me what's sore"

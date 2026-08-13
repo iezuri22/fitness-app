@@ -50,7 +50,7 @@ export default function History() {
   const completedCount = workouts.filter((w) => w.status === "completed").length;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-4">
       <PageHeader
         title="History"
         subtitle={

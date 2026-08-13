@@ -91,7 +91,7 @@ export default function LogClass() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Log a class"
         subtitle="Something you already did"

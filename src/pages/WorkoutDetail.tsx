@@ -74,7 +74,7 @@ export default function WorkoutDetail() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Link
         to={backTo}
         className="-ml-1 inline-flex items-center gap-1 text-[16px] text-[color:var(--color-accent)] active:opacity-60"

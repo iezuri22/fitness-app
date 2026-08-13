@@ -126,7 +126,7 @@ export default function NewWorkout() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
         <Link to="/" className="text-sm text-[color:var(--color-muted)]">
           ← Today

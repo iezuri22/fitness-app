@@ -44,7 +44,7 @@ export default function Planned() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader title="Planned" subtitle="What's on deck" />
       {workouts.length === 0 ? (
         <EmptyState

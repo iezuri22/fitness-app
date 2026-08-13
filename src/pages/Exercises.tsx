@@ -15,11 +15,11 @@ import {
   PageHeader,
   PageSkeleton,
   Row,
+  SectionHeader,
   Sheet,
   SheetHeader,
   Switch,
   Tag,
-  ChipRail,
 } from "../components/ui";
 import { BODY_PARTS, bodyPartsForName, type BodyPart } from "../lib/generateWorkout";
 import ExerciseGif from "../components/ExerciseGif";
@@ -50,6 +50,7 @@ export default function Exercises() {
   // its own demo image) is what made this tab slow to open. Render a page at a
   // time instead.
   const [visible, setVisible] = useState(PAGE);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -90,6 +91,9 @@ export default function Exercises() {
     for (const e of base) for (const bp of bodyPartsForName(e.name)) counts[bp] += 1;
     return counts;
   }, [items, cat]);
+
+  const activeFilters =
+    (cat !== "All" ? 1 : 0) + (part !== "All" ? 1 : 0) + (onlyMissingGif ? 1 : 0);
 
   const missingGifCount = useMemo(() => {
     if (!items) return 0;
@@ -135,41 +139,25 @@ export default function Exercises() {
         }
       />
 
-      <Input
-        placeholder="Search exercises"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-
-      <ChipRail<ExerciseCategory | "All">
-        label="Category"
-        value={cat}
-        onChange={setCat}
-        options={(["All", ...CATEGORIES] as const).map((c) => ({ value: c, label: c }))}
-      />
-
-      <ChipRail<BodyPart | "All">
-        label="Body part"
-        value={part}
-        onChange={setPart}
-        options={[
-          { value: "All" as const, label: "All" },
-          ...BODY_PARTS.map((b) => ({
-            value: b.key,
-            label: b.label,
-            count: partCounts[b.key],
-          })),
-        ]}
-      />
-
-      <Group>
-        <Row
-          to="/body"
-          title="Study body parts"
-          subtitle="What each area does, and how to train it"
-          chevron
-        />
-      </Group>
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <Input
+            placeholder="Search exercises"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <button
+          onClick={() => setFiltersOpen(true)}
+          className={`h-10 shrink-0 rounded-[10px] px-3.5 text-[15px] font-medium transition-colors ${
+            activeFilters > 0
+              ? "bg-[color:var(--color-accent)] text-white"
+              : "bg-[color:var(--color-surface-2)] text-[color:var(--color-muted)]"
+          }`}
+        >
+          Filters{activeFilters > 0 ? ` · ${activeFilters}` : ""}
+        </button>
+      </div>
 
       {notionMissingCount > 0 && (
         <Card>
@@ -198,17 +186,6 @@ export default function Exercises() {
         <Card>
           <div className="text-[13px] text-[color:var(--color-muted)]">{importMsg}</div>
         </Card>
-      )}
-
-      {missingGifCount > 0 && (
-        <Group>
-          <Row
-            onClick={() => setOnlyMissingGif((v) => !v)}
-            title="Missing a demo"
-            value={String(missingGifCount)}
-            trailing={<Switch on={onlyMissingGif} />}
-          />
-        </Group>
       )}
 
       {filtered.length === 0 ? (
@@ -260,6 +237,91 @@ export default function Exercises() {
         </Button>
       )}
 
+      <Group>
+        <Row
+          to="/body"
+          title="Study body parts"
+          subtitle="What each area does, and how to train it"
+          chevron
+        />
+      </Group>
+
+      {filtersOpen && (
+        <Sheet onClose={() => setFiltersOpen(false)} label="Filter exercises">
+          <SheetHeader
+            title="Filters"
+            onCancel={() => setFiltersOpen(false)}
+            action={
+              activeFilters > 0 ? (
+                <button
+                  onClick={() => {
+                    setCat("All");
+                    setPart("All");
+                    setOnlyMissingGif(false);
+                  }}
+                  className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
+                >
+                  Reset
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="space-y-5 overflow-y-auto px-4 pb-8 pt-2">
+            <section>
+              <SectionHeader title="Body part" />
+              <Group>
+                <Row
+                  title="Any body part"
+                  onClick={() => setPart("All")}
+                  trailing={part === "All" ? <Tick /> : undefined}
+                />
+                {BODY_PARTS.map((b) => (
+                  <Row
+                    key={b.key}
+                    title={b.label}
+                    value={String(partCounts[b.key])}
+                    onClick={() => setPart(b.key)}
+                    trailing={part === b.key ? <Tick /> : undefined}
+                  />
+                ))}
+              </Group>
+            </section>
+
+            <section>
+              <SectionHeader title="Category" />
+              <Group>
+                {(["All", ...CATEGORIES] as const).map((c) => (
+                  <Row
+                    key={c}
+                    title={c === "All" ? "All categories" : c}
+                    onClick={() => setCat(c)}
+                    trailing={cat === c ? <Tick /> : undefined}
+                  />
+                ))}
+              </Group>
+            </section>
+
+            {missingGifCount > 0 && (
+              <section>
+                <SectionHeader title="Demos" />
+                <Group>
+                  <Row
+                    onClick={() => setOnlyMissingGif((v) => !v)}
+                    title="Missing a demo"
+                    value={String(missingGifCount)}
+                    trailing={<Switch on={onlyMissingGif} />}
+                  />
+                </Group>
+              </section>
+            )}
+
+            <Button size="lg" block onClick={() => setFiltersOpen(false)}>
+              Show {filtered.length} exercise{filtered.length === 1 ? "" : "s"}
+            </Button>
+          </div>
+        </Sheet>
+      )}
+
       {creating && (
         <CreateExerciseModal
           onClose={() => setCreating(false)}
@@ -270,6 +332,19 @@ export default function Exercises() {
         />
       )}
     </div>
+  );
+}
+
+function Tick() {
+  return (
+    <svg
+      className="shrink-0 text-[color:var(--color-accent)]"
+      width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
   );
 }
 

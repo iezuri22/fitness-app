@@ -11,7 +11,6 @@ import {
   startWorkoutFromTemplate,
 } from "../lib/db";
 import {
-  Button,
   Card,
   Group,
   PageHeader,
@@ -58,6 +57,9 @@ export default function Plan() {
   const [planning, setPlanning] = useState(false);
   const [planMsg, setPlanMsg] = useState<string | null>(null);
   const [moving, setMoving] = useState<Workout | null>(null);
+  // Goals are a reference number you set once, not something you read every
+  // visit — collapsed by default so the week itself is what you land on.
+  const [goalsOpen, setGoalsOpen] = useState(false);
 
   const today = todayStr();
   const { start, end } = useMemo(() => {
@@ -70,6 +72,22 @@ export default function Plan() {
     () => Array.from({ length: 7 }, (_, i) => addDays(start, i)),
     [start]
   );
+
+  /**
+   * Mon–Sun is the right order for a week you're planning, but the wrong one
+   * for the week you're in — you open this on a Thursday to see Thursday, not
+   * to scroll past three days that already happened. For the current week the
+   * list starts at today and the earlier days move to a section at the bottom.
+   */
+  const { leadDays, pastDays } = useMemo(() => {
+    if (weekOffset !== 0) return { leadDays: days, pastDays: [] as string[] };
+    return {
+      leadDays: days.filter((d) => d >= today),
+      pastDays: days.filter((d) => d < today),
+    };
+  }, [days, weekOffset, today]);
+
+  const dayName = (date: string) => DAY_NAMES[days.indexOf(date)];
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -181,13 +199,16 @@ export default function Plan() {
     return { count: planned.length, minutes, done };
   }, [workouts]);
 
+  const totalDone = KINDS.reduce((n, k) => n + Math.min(done[k.key], goals[k.key]), 0);
+  const totalGoal = KINDS.reduce((n, k) => n + goals[k.key], 0);
+
   if (workouts === null) return <PageSkeleton rows={6} />;
 
   const label =
     weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : weekOffset === -1 ? "Last week" : `${start} – ${end}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader title="Plan" subtitle="Your training week" />
 
       {/* Week switcher */}
@@ -205,63 +226,91 @@ export default function Plan() {
       </div>
 
       <section>
-        <SectionHeader
-          title="Weekly goals"
-          action={
-            <button
-              type="button"
-              onClick={() => setEditingGoals((v) => !v)}
-              className="text-[15px] text-[color:var(--color-accent)] active:opacity-60"
-            >
-              {editingGoals ? "Done" : "Edit"}
-            </button>
-          }
-        />
-        <Card>
-          <div className="space-y-4">
-            {KINDS.map((k) => (
-              <GoalBar
-                key={k.key}
-                label={k.label}
-                hint={k.hint}
-                done={done[k.key]}
-                planned={planned[k.key]}
-                goal={goals[k.key]}
-                editing={editingGoals}
-                onChange={(d) => void updateGoal(k.key, d)}
-              />
-            ))}
-          </div>
-          {!editingGoals && (
-            <div className="mt-4 flex items-center justify-between border-t border-[color:var(--color-separator)] pt-3 text-[13px] tnum text-[color:var(--color-muted)]">
-              <span>{stats.count} scheduled this week</span>
-              <span>{stats.minutes > 0 ? formatMinutes(stats.minutes) : "—"} total</span>
+        <Group>
+          <Row
+            title="Weekly goals"
+            subtitle={`${stats.count} scheduled · ${
+              stats.minutes > 0 ? formatMinutes(stats.minutes) : "0 min"
+            }`}
+            value={`${totalDone}/${totalGoal}`}
+            onClick={() => setGoalsOpen((v) => !v)}
+            trailing={
+              <svg
+                className={`shrink-0 text-[color:var(--color-muted-2)] transition-transform ${
+                  goalsOpen ? "rotate-180" : ""
+                }`}
+                width="12" height="8" viewBox="0 0 12 8" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden
+              >
+                <polyline points="1 1.5 6 6.5 11 1.5" />
+              </svg>
+            }
+          />
+        </Group>
+
+        {goalsOpen && (
+          <Card className="mt-2">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[13px] text-[color:var(--color-muted)]">
+                Targets for the week
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditingGoals((v) => !v)}
+                className="text-[15px] text-[color:var(--color-accent)] active:opacity-60"
+              >
+                {editingGoals ? "Done" : "Edit"}
+              </button>
             </div>
-          )}
-        </Card>
+            <div className="space-y-3.5">
+              {KINDS.map((k) => (
+                <GoalBar
+                  key={k.key}
+                  label={k.label}
+                  hint={k.hint}
+                  done={done[k.key]}
+                  planned={planned[k.key]}
+                  goal={goals[k.key]}
+                  editing={editingGoals}
+                  onChange={(d) => void updateGoal(k.key, d)}
+                />
+              ))}
+            </div>
+          </Card>
+        )}
       </section>
 
-      <div className="flex gap-2">
-        <Button className="flex-1" onClick={planWeek} disabled={planning}>
-          {planning ? "Planning…" : "Plan my week"}
-        </Button>
-        <Link to={`/log-class?date=${today}`} className="flex-1">
-          <Button variant="secondary" className="w-full">
-            Log a class
-          </Button>
+      {/* Label follows the week you're looking at — otherwise "Plan my week"
+          on next week's view reads like it'd fill this one. */}
+      <div className="flex items-center gap-3 text-[15px]">
+        <button
+          onClick={planWeek}
+          disabled={planning}
+          className="text-[color:var(--color-accent)] active:opacity-60 disabled:opacity-30"
+        >
+          {planning
+            ? "Planning…"
+            : weekOffset === 0
+            ? "Auto-plan this week"
+            : weekOffset === 1
+            ? "Auto-plan next week"
+            : `Auto-plan ${short(start)}`}
+        </button>
+        <span className="text-[color:var(--color-muted-2)]">·</span>
+        <Link to={`/log-class?date=${today}`} className="text-[color:var(--color-accent)] active:opacity-60">
+          Log a class
         </Link>
       </div>
       {planMsg && (
-        <Card>
-          <div className="text-[13px] text-[color:var(--color-muted)]">{planMsg}</div>
-        </Card>
+        <p className="text-[13px] text-[color:var(--color-muted)]">{planMsg}</p>
       )}
 
-      <div className="space-y-6">
-        {days.map((date, i) => (
+      <div className="space-y-4">
+        {leadDays.map((date) => (
           <DayRow
             key={date}
-            dayName={DAY_NAMES[i]}
+            dayName={dayName(date)}
             date={date}
             isToday={date === today}
             isPast={date < today}
@@ -273,6 +322,27 @@ export default function Plan() {
             }
           />
         ))}
+
+        {pastDays.length > 0 && (
+          <>
+            <SectionHeader title="Earlier this week" className="pt-2" />
+            {pastDays.map((date) => (
+              <DayRow
+                key={date}
+                dayName={dayName(date)}
+                date={date}
+                isToday={false}
+                isPast
+                workouts={byDate.get(date) ?? []}
+                onRemove={removeWorkout}
+                onMove={setMoving}
+                onOpen={(w) =>
+                  nav(w.status === "completed" ? `/history/${w.id}` : `/workout/${w.id}`)
+                }
+              />
+            ))}
+          </>
+        )}
       </div>
 
       <p className="pt-1 text-center text-[13px] text-[color:var(--color-muted-2)]">

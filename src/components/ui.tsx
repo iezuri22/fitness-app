@@ -15,7 +15,7 @@ import { Link } from "react-router-dom";
        black; it does not also get a stroke.
      · Section headers are sentence case at normal tracking. No uppercase
        eyebrows, no letter-spacing.
-     · Radii are 14 (card) / 12 (control). Pills are for chips only.
+     · Radii are 12 (card) / 10 (control). Pills are for chips only.
      · No gradients, no colored shadows.
    ========================================================================== */
 
@@ -36,9 +36,9 @@ export function Button({
   ...props
 }: ButtonProps) {
   const sizes: Record<string, string> = {
-    sm: "h-8 px-3 text-[13px] rounded-lg",
-    md: "h-11 px-4 text-[15px] rounded-xl",
-    lg: "h-[52px] px-5 text-[17px] rounded-xl",
+    sm: "h-7 px-2.5 text-[13px] rounded-lg",
+    md: "h-9 px-3.5 text-[15px] rounded-[10px]",
+    lg: "h-11 px-4 text-[16px] rounded-xl",
   };
   const variants: Record<string, string> = {
     // Flat fill. The press state is a darker blue, not a scale transform —
@@ -78,7 +78,7 @@ export function Input({ label, className = "", ...props }: InputProps) {
       )}
       <input
         {...props}
-        className={`h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] outline-none placeholder:text-[color:var(--color-muted-2)] focus:bg-[color:var(--color-surface-3)] transition-colors ${className}`}
+        className={`h-10 w-full rounded-[10px] bg-[color:var(--color-surface-2)] px-3 text-[16px] outline-none placeholder:text-[color:var(--color-muted-2)] focus:bg-[color:var(--color-surface-3)] transition-colors ${className}`}
       />
     </label>
   );
@@ -101,18 +101,18 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 pt-1 pb-1">
+    <div className="flex items-baseline justify-between gap-3">
       <div className="min-w-0">
-        <h1 className="text-[28px] font-bold tracking-[-0.02em] leading-tight">
+        <h1 className="text-[26px] font-bold tracking-[-0.02em] leading-none">
           {title}
         </h1>
         {subtitle && (
-          <div className="mt-0.5 text-[15px] text-[color:var(--color-muted)]">
+          <div className="mt-1 text-[14px] leading-tight text-[color:var(--color-muted)]">
             {subtitle}
           </div>
         )}
       </div>
-      {action && <div className="shrink-0 pt-1">{action}</div>}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
@@ -131,7 +131,7 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={`flex items-baseline justify-between gap-3 mb-2 ${className}`}>
+    <div className={`flex items-baseline justify-between gap-3 mb-1.5 ${className}`}>
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{title}</h2>
       {action}
     </div>
@@ -159,8 +159,8 @@ export function Card({
   return (
     <Tag
       onClick={onClick}
-      className={`block w-full text-left rounded-[14px] bg-[color:var(--color-surface)] ${
-        padded ? "p-4" : ""
+      className={`block w-full text-left rounded-[12px] bg-[color:var(--color-surface)] ${
+        padded ? "p-3.5" : ""
       } ${onClick ? "active:bg-[color:var(--color-surface-2)] transition-colors" : ""} ${className}`}
     >
       {children}
@@ -182,7 +182,7 @@ export function Group({
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-[14px] bg-[color:var(--color-surface)] divide-rows ${className}`}
+      className={`overflow-hidden rounded-[12px] bg-[color:var(--color-surface)] divide-rows ${className}`}
     >
       {children}
     </div>
@@ -221,20 +221,20 @@ export function Row({
       {leading && <div className="shrink-0">{leading}</div>}
       <div className="min-w-0 flex-1">
         <div
-          className={`text-[16px] leading-tight tracking-[-0.01em] truncate ${
+          className={`text-[15px] leading-tight tracking-[-0.01em] truncate ${
             destructive ? "text-[color:var(--color-danger)]" : ""
           }`}
         >
           {title}
         </div>
         {subtitle && (
-          <div className="mt-0.5 text-[13px] text-[color:var(--color-muted)] truncate">
+          <div className="mt-px text-[13px] text-[color:var(--color-muted)] truncate">
             {subtitle}
           </div>
         )}
       </div>
       {value && (
-        <div className="shrink-0 text-[15px] text-[color:var(--color-muted)] tnum">
+        <div className="shrink-0 text-[14px] text-[color:var(--color-muted)] tnum">
           {value}
         </div>
       )}
@@ -243,7 +243,7 @@ export function Row({
     </>
   );
 
-  const cls = `flex w-full items-center gap-3 px-4 py-3 text-left ${
+  const cls = `flex w-full items-center gap-3 px-3.5 py-2.5 text-left ${
     to || onClick ? "active:bg-[color:var(--color-surface-2)] transition-colors" : ""
   } ${className}`;
 

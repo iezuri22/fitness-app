@@ -107,7 +107,7 @@ export default function ExerciseDetail() {
   const hasFallbackGif = !hasExplicitGif && !!findGifForName(ex.name);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Link
         to="/exercises"
         className="-ml-1 inline-flex items-center gap-1 text-[16px] text-[color:var(--color-accent)] active:opacity-60"

@@ -102,7 +102,7 @@ export default function Generate() {
   const previewMinutes = preview ? estimatePlannedMinutes(preview) : 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Generate"
         subtitle={planDate ? "Schedule a session" : "Build a session"}
