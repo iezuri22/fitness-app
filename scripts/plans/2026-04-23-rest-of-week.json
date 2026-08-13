@@ -1,0 +1,125 @@
+{
+  "userEmail": "iezuri22@gmail.com",
+  "workouts": [
+    {
+      "date": "2026-04-23",
+      "slot": "morning-pt",
+      "title": "4/23 — Morning PT + Stretch",
+      "focus": "PT/Rehab",
+      "notes": "Daily non-negotiable. Start with pulleys + heat pad.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 1, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "With heat pad on left shoulder" },
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 2, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Scapular Wall Slides", "order": 6, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Prone Y Raise", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Prone T Raise", "order": 8, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Doorway Chest Stretch", "order": 9, "targetReps": 3, "targetWeight": null, "setType": "Stretch", "restSeconds": 15, "notes": "30s hold each side" },
+        { "exerciseName": "Cat-Cow Pose", "order": 10, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 15 }
+      ]
+    },
+    {
+      "date": "2026-04-23",
+      "slot": "strength",
+      "title": "4/23 — Upper Body (shoulder-safe)",
+      "focus": "Upper Body",
+      "notes": "Evening. No push-ups. Keep overhead light + warmed up.",
+      "sets": [
+        { "exerciseName": "Band Pull-apart", "order": 1, "targetReps": 15, "targetWeight": null, "setType": "Warm-up", "restSeconds": 30 },
+        { "exerciseName": "Band Pull-apart", "order": 2, "targetReps": 15, "targetWeight": null, "setType": "Warm-up", "restSeconds": 30 },
+        { "exerciseName": "Dumbbell Single-arm Row", "order": 3, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60 },
+        { "exerciseName": "Dumbbell Single-arm Row", "order": 4, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60 },
+        { "exerciseName": "Dumbbell Single-arm Row", "order": 5, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60 },
+        { "exerciseName": "Dumbbell Floor Press", "order": 6, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60 },
+        { "exerciseName": "Dumbbell Floor Press", "order": 7, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60 },
+        { "exerciseName": "Dumbbell Floor Press", "order": 8, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60 },
+        { "exerciseName": "Band Face Pull", "order": 9, "targetReps": 15, "targetWeight": null, "setType": "Working", "restSeconds": 45 },
+        { "exerciseName": "Band Face Pull", "order": 10, "targetReps": 15, "targetWeight": null, "setType": "Working", "restSeconds": 45 },
+        { "exerciseName": "Dumbbell Hammer Curl", "order": 11, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 45 },
+        { "exerciseName": "Dumbbell Hammer Curl", "order": 12, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 45 },
+        { "exerciseName": "Running", "order": 13, "targetReps": 25, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "25 min treadmill, easy-moderate pace" }
+      ]
+    },
+    {
+      "date": "2026-04-24",
+      "slot": "morning-pt",
+      "title": "4/24 — Morning PT + Stretch",
+      "focus": "PT/Rehab",
+      "notes": "Daily non-negotiable.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 1, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "With heat pad" },
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 2, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band Internal Rotation", "order": 6, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Prone W Raise", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Thread the Needle", "order": 8, "targetReps": 8, "targetWeight": null, "setType": "Stretch", "restSeconds": 20, "notes": "Each side" },
+        { "exerciseName": "Child's Pose", "order": 9, "targetReps": 2, "targetWeight": null, "setType": "Stretch", "restSeconds": 15, "notes": "45s hold" },
+        { "exerciseName": "Foam Roller Thoracic Extension", "order": 10, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 20 }
+      ]
+    },
+    {
+      "date": "2026-04-25",
+      "slot": "morning-pt",
+      "title": "4/25 — Morning PT + Stretch",
+      "focus": "PT/Rehab",
+      "notes": "Daily non-negotiable.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 1, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "With heat pad" },
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 2, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Scapular Wall Slides", "order": 6, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Prone Y Raise", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Dead Bug", "order": 8, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Core + lower back" },
+        { "exerciseName": "Bird Dog", "order": 9, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Kneeling Hip Flexor Stretch", "order": 10, "targetReps": 2, "targetWeight": null, "setType": "Stretch", "restSeconds": 20, "notes": "45s each side" }
+      ]
+    },
+    {
+      "date": "2026-04-25",
+      "slot": "strength",
+      "title": "4/25 — Lower Body",
+      "focus": "Lower Body",
+      "notes": "Load up — hitting 20 reps where 12 is prescribed is the signal to go heavier.",
+      "sets": [
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 1, "targetReps": 12, "targetWeight": 20, "setType": "Warm-up", "restSeconds": 45 },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 2, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 75 },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 3, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 75 },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 4, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 75 },
+        { "exerciseName": "Kettlebell Deadlift", "order": 5, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 75 },
+        { "exerciseName": "Kettlebell Deadlift", "order": 6, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 75 },
+        { "exerciseName": "Kettlebell Deadlift", "order": 7, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 75 },
+        { "exerciseName": "Reverse Lunge", "order": 8, "targetReps": 10, "targetWeight": 10, "setType": "Working", "restSeconds": 60, "notes": "Each leg" },
+        { "exerciseName": "Reverse Lunge", "order": 9, "targetReps": 10, "targetWeight": 10, "setType": "Working", "restSeconds": 60 },
+        { "exerciseName": "Glute Bridge", "order": 10, "targetReps": 15, "targetWeight": null, "setType": "Working", "restSeconds": 45 },
+        { "exerciseName": "Glute Bridge", "order": 11, "targetReps": 15, "targetWeight": null, "setType": "Working", "restSeconds": 45 },
+        { "exerciseName": "Dumbbell Calf Raise", "order": 12, "targetReps": 20, "targetWeight": null, "setType": "Working", "restSeconds": 30 },
+        { "exerciseName": "Running", "order": 13, "targetReps": 25, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "25 min treadmill, easy pace to finish" }
+      ]
+    },
+    {
+      "date": "2026-04-26",
+      "slot": "morning-pt",
+      "title": "4/26 — Morning PT + Stretch",
+      "focus": "PT/Rehab",
+      "notes": "Sunday. Planner picks up tonight at 6 PM for next week.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 1, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "With heat pad" },
+        { "exerciseName": "Shoulder Pulleys (seated, w/ heat pad)", "order": 2, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Band External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45 },
+        { "exerciseName": "Scapular Wall Slides", "order": 6, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Prone T Raise", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30 },
+        { "exerciseName": "Adho Mukha Svanasana — Downward Facing Dog", "order": 8, "targetReps": 3, "targetWeight": null, "setType": "Stretch", "restSeconds": 20, "notes": "30s hold" },
+        { "exerciseName": "Standing Hamstring Stretch", "order": 9, "targetReps": 2, "targetWeight": null, "setType": "Stretch", "restSeconds": 20 },
+        { "exerciseName": "Foam Roller Thoracic Extension", "order": 10, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 20 }
+      ]
+    }
+  ]
+}

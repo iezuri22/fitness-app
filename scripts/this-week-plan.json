@@ -1,0 +1,169 @@
+{
+  "userEmail": "iezuri22@gmail.com",
+  "workouts": [
+    {
+      "date": "2026-04-20",
+      "title": "4/20 — Upper Body Pull + Shoulder Rehab",
+      "focus": "Upper Body",
+      "notes": "~70 min. 18 sets + 30 min walk. Monday re-entry after 13-day layoff. Shoulder-safe Upper Pull (no overhead load). ER priority: Band ER ×2 + Dowel-assisted ER + Isometric Wall ER.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 1, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Heat pad on left shoulder. Always first." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 2, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Keep heat pad on." },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "PRIORITY PT. Light band. Elbow pinned to ribs." },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Medium band. Slow out, slow back." },
+        { "exerciseName": "Dowel-assisted Standing External Rotation - Left", "order": 5, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Athletico-prescribed. Good side assists through the range." },
+        { "exerciseName": "Isometric Shoulder External Rotation (wall)", "order": 6, "targetReps": 5, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Elbow at 90°, tight to ribs. Press hand into wall, hold 10s. 5 holds." },
+        { "exerciseName": "Band Pull-Apart", "order": 7, "targetReps": 15, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Warm-up scaps. Straight arms, chest height, squeeze blades." },
+        { "exerciseName": "Kettlebell Single-arm Row", "order": 8, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "20lb KB. Brace on couch. 10 each side. Neutral grip, elbow tucked." },
+        { "exerciseName": "Kettlebell Single-arm Row", "order": 9, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 2. Controlled tempo — no yanking the left side." },
+        { "exerciseName": "Kettlebell Single-arm Row", "order": 10, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 3 — full squeeze at top." },
+        { "exerciseName": "Band Chest-supported Row", "order": 11, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 60, "notes": "Anchor low, hinge chest over thighs, pull elbows back." },
+        { "exerciseName": "Band Chest-supported Row", "order": 12, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 60, "notes": "Set 2." },
+        { "exerciseName": "Band Chest-supported Row", "order": 13, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 60, "notes": "Set 3." },
+        { "exerciseName": "Band High Row", "order": 14, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 45, "notes": "Band anchored low, elbows up toward ears. Upper back + rear delts." },
+        { "exerciseName": "Band High Row", "order": 15, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 45, "notes": "Set 2." },
+        { "exerciseName": "Band Straight-arm Pulldown", "order": 16, "targetReps": 15, "targetWeight": null, "setType": "Working", "restSeconds": 45, "notes": "Straight arms, pull to thighs. Lats isolated." },
+        { "exerciseName": "Doorway Chest Stretch", "order": 17, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "30s each side. Open pecs after all the pulling." },
+        { "exerciseName": "Running", "order": 18, "targetReps": 30, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "30 min treadmill walk. Reps = minutes." }
+      ]
+    },
+    {
+      "date": "2026-04-21",
+      "title": "4/21 — Lower Body + Shoulder Rehab",
+      "focus": "Lower Body",
+      "notes": "~90 min. 20 sets + 30 min walk. Shoulder-neutral day. 20lb KB baseline per progression note. ER rotation: Band ER ×2 + Resisted Eccentric ER Walk Out.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 1, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Heat pad on left shoulder. Always first." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 2, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 2." },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "PRIORITY PT. Light band, clean tempo." },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Medium band." },
+        { "exerciseName": "Resisted Standing Shoulder Extension", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Straight arm, pull band back past hip. Lat + posterior cuff." },
+        { "exerciseName": "Resisted Eccentric External Rotation Walk Out - Left", "order": 6, "targetReps": 8, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45, "notes": "Anchor band at elbow height. Walk feet AWAY from anchor holding ER. 8 slow walk-outs." },
+        { "exerciseName": "Scapular Wall Slides", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "W to Y slide. Pain-free range." },
+        { "exerciseName": "Bird Dog", "order": 8, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Dynamic prep — opposite arm + leg, hold 2s. 10/side." },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 9, "targetReps": 12, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "20lb at chest, elbows tucked. 3s down, 1s pause. RPE 7-8." },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 10, "targetReps": 12, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 2." },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 11, "targetReps": 12, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 3 — push for full 12 even if reps get tough." },
+        { "exerciseName": "Kettlebell Single Leg Deadlift", "order": 12, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "20lb KB in opposite hand. Slow 3s eccentric. 10 each leg." },
+        { "exerciseName": "Kettlebell Single Leg Deadlift", "order": 13, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 2 — focus on balance." },
+        { "exerciseName": "Kettlebell Single Leg Deadlift", "order": 14, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 3." },
+        { "exerciseName": "Dumbbell Lateral Lunge", "order": 15, "targetReps": 10, "targetWeight": 10, "setType": "Working", "restSeconds": 60, "notes": "10lb DBs by sides. Step wide, sit into hip. 10 each side." },
+        { "exerciseName": "Dumbbell Lateral Lunge", "order": 16, "targetReps": 10, "targetWeight": 10, "setType": "Working", "restSeconds": 60, "notes": "Set 2." },
+        { "exerciseName": "Dumbbell Lateral Lunge", "order": 17, "targetReps": 10, "targetWeight": 10, "setType": "Working", "restSeconds": 60, "notes": "Set 3." },
+        { "exerciseName": "Figure Four Glute Stretch", "order": 18, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "30s each side." },
+        { "exerciseName": "Ardha Kapotasana - Half Pigeon Pose", "order": 19, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "60s each side. Deep hip opener." },
+        { "exerciseName": "Running", "order": 20, "targetReps": 30, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "30 min treadmill. Reps = minutes." }
+      ]
+    },
+    {
+      "date": "2026-04-22",
+      "title": "4/22 — PT + Active Recovery",
+      "focus": "PT/Rehab",
+      "notes": "~45 min. 11 sets + 30 min walk. Rest day — PT volume is higher. ER variety: Band ER + Prone ER at 90°.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 1, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Heat pad. 3 rounds today." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 2, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 2." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 3, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 3." },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "PRIORITY. Light band." },
+        { "exerciseName": "Band External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Medium band." },
+        { "exerciseName": "Prone External Rotation at 90°", "order": 6, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45, "notes": "Face down on bed/couch, left arm at 90° off edge, rotate up toward ceiling. ZERO weight to start." },
+        { "exerciseName": "Pilates Ball Scapular Squeeze", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "9-inch ball between shoulder blades against wall. 3s squeeze hold." },
+        { "exerciseName": "Banded Sleeper Stretch (gentle)", "order": 8, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "IR mobility. Lie on left, gently push forearm down. 2×30s hold — don't force." },
+        { "exerciseName": "Bird Dog", "order": 9, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Hold 2s at top. 10/side." },
+        { "exerciseName": "Foam Roller Glutes", "order": 10, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "60s each side." },
+        { "exerciseName": "Running", "order": 11, "targetReps": 30, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "30 min treadmill — easy recovery pace." }
+      ]
+    },
+    {
+      "date": "2026-04-23",
+      "title": "4/23 — Upper Body Push + Shoulder Rehab",
+      "focus": "Upper Body",
+      "notes": "~80 min. 19 sets + 30 min walk. Push day with close-grip + neutral-grip only (no wide-grip, no deep fly). ER rotation: Band ER + Side-lying ER ×2.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 1, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Heat pad." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 2, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 2." },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "PRIORITY. Light band, clean form." },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Medium band." },
+        { "exerciseName": "Side-lying External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Lying on right side, left elbow pinned. Rotate up. Zero or very light (5lb) DB." },
+        { "exerciseName": "Side-lying External Rotation", "order": 6, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Set 2 — slow 3s up, 3s down." },
+        { "exerciseName": "Scapular Wall Slides", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Pain-free range only." },
+        { "exerciseName": "Dumbbell Close-grip Floor Press", "order": 8, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60, "notes": "DBs touching, elbows tight to ribs. Tricep + inner pec. 10lb each hand." },
+        { "exerciseName": "Dumbbell Close-grip Floor Press", "order": 9, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60, "notes": "Set 2." },
+        { "exerciseName": "Dumbbell Close-grip Floor Press", "order": 10, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 60, "notes": "Set 3." },
+        { "exerciseName": "Single-arm Band Chest Press", "order": 11, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 60, "notes": "Band anchored behind, one arm at a time. 12 each side." },
+        { "exerciseName": "Single-arm Band Chest Press", "order": 12, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 60, "notes": "Set 2." },
+        { "exerciseName": "Single-arm Band Chest Press", "order": 13, "targetReps": 12, "targetWeight": null, "setType": "Working", "restSeconds": 60, "notes": "Set 3." },
+        { "exerciseName": "Dumbbell Tricep Kickback", "order": 14, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 45, "notes": "Upper arm pinned to side. Full extension, squeeze at top. 10lb." },
+        { "exerciseName": "Dumbbell Tricep Kickback", "order": 15, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 45, "notes": "Set 2." },
+        { "exerciseName": "Dumbbell Tricep Kickback", "order": 16, "targetReps": 12, "targetWeight": 10, "setType": "Working", "restSeconds": 45, "notes": "Set 3." },
+        { "exerciseName": "Band Face Pull", "order": 17, "targetReps": 15, "targetWeight": null, "setType": "Working", "restSeconds": 45, "notes": "Pull to forehead with light band — rear delts balance the pressing volume." },
+        { "exerciseName": "Doorway Chest Stretch", "order": 18, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "30s each side — essential after pressing." },
+        { "exerciseName": "Running", "order": 19, "targetReps": 30, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "30 min treadmill." }
+      ]
+    },
+    {
+      "date": "2026-04-24",
+      "title": "4/24 — Core + Conditioning",
+      "focus": "Full Body",
+      "notes": "~70 min. 18 sets + 30 min walk. Core emphasis + metabolic swings for the chisseled-face goal. ER rotation: Band ER + Face Pull w/ ER + Dowel-assisted ER.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 1, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Heat pad." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 2, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 2." },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "PRIORITY. Light band." },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Medium band." },
+        { "exerciseName": "Band Face Pull with External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Pull to forehead, then rotate hands back — big ER emphasis at finish." },
+        { "exerciseName": "Dowel-assisted Standing External Rotation - Left", "order": 6, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Assisted ER." },
+        { "exerciseName": "Bird Dog", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "Working", "restSeconds": 30, "notes": "Core — opposite arm + leg, hold 2s. 10/side." },
+        { "exerciseName": "Bird Dog", "order": 8, "targetReps": 10, "targetWeight": null, "setType": "Working", "restSeconds": 30, "notes": "Set 2." },
+        { "exerciseName": "Dead Bug with Band", "order": 9, "targetReps": 10, "targetWeight": null, "setType": "Working", "restSeconds": 30, "notes": "Band overhead, lower opposite arm + leg. 10/side — control tempo." },
+        { "exerciseName": "Dead Bug with Band", "order": 10, "targetReps": 10, "targetWeight": null, "setType": "Working", "restSeconds": 30, "notes": "Set 2." },
+        { "exerciseName": "Bicycle Crunch", "order": 11, "targetReps": 20, "targetWeight": null, "setType": "Working", "restSeconds": 30, "notes": "Slow — 20 total, no yanking the neck." },
+        { "exerciseName": "Bicycle Crunch", "order": 12, "targetReps": 20, "targetWeight": null, "setType": "Working", "restSeconds": 30, "notes": "Set 2." },
+        { "exerciseName": "Kettlebell Swings", "order": 13, "targetReps": 15, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "RUSSIAN only — chest-level, NOT overhead. 20lb." },
+        { "exerciseName": "Kettlebell Swings", "order": 14, "targetReps": 15, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 2." },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 15, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Light lower to round out — 20lb KB." },
+        { "exerciseName": "Kettlebell Goblet Squat", "order": 16, "targetReps": 10, "targetWeight": 20, "setType": "Working", "restSeconds": 60, "notes": "Set 2." },
+        { "exerciseName": "Foam Roller Glutes", "order": 17, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "60s each side." },
+        { "exerciseName": "Running", "order": 18, "targetReps": 30, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "30 min treadmill — steady state." }
+      ]
+    },
+    {
+      "date": "2026-04-25",
+      "title": "4/25 — PT + Mobility",
+      "focus": "PT/Rehab",
+      "notes": "~45 min. 11 sets + 30 min walk. Active recovery — no strength. ER rotation: Band ER + Resisted Eccentric ER Walk Out.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 1, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Heat pad. 3 rounds." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 2, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 2." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 3, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 3." },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "PRIORITY. Light band." },
+        { "exerciseName": "Band External Rotation", "order": 5, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Medium band." },
+        { "exerciseName": "Resisted Eccentric External Rotation Walk Out - Left", "order": 6, "targetReps": 8, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45, "notes": "8 slow walk-outs. Eccentric cuff loading." },
+        { "exerciseName": "Scapular Wall Slides", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "W to Y slide. Pain-free range." },
+        { "exerciseName": "Pilates Ball Scapular Squeeze", "order": 8, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "9-inch ball, squeeze 3s." },
+        { "exerciseName": "Ardha Kapotasana - Half Pigeon Pose", "order": 9, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "60s each side." },
+        { "exerciseName": "Figure Four Glute Stretch", "order": 10, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "30s each side." },
+        { "exerciseName": "Running", "order": 11, "targetReps": 30, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "30 min treadmill — easy pace." }
+      ]
+    },
+    {
+      "date": "2026-04-26",
+      "title": "4/26 — PT + Gentle Flow",
+      "focus": "PT/Rehab",
+      "notes": "~40 min. 11 sets + 30 min walk. Sunday reset — lightest day. Progression ER + IR mobility companion.",
+      "sets": [
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 1, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Heat pad. 2 rounds today." },
+        { "exerciseName": "Shoulder Pulley Stretch", "order": 2, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Round 2." },
+        { "exerciseName": "Band External Rotation", "order": 3, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "PRIORITY. Light band." },
+        { "exerciseName": "Band External Rotation", "order": 4, "targetReps": 12, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Medium band." },
+        { "exerciseName": "Prone External Rotation at 90°", "order": 5, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 45, "notes": "Zero weight — form only." },
+        { "exerciseName": "Banded Sleeper Stretch (gentle)", "order": 6, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 20, "notes": "Easy IR mobility. Don't force." },
+        { "exerciseName": "Bird Dog", "order": 7, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "10/side, hold 2s." },
+        { "exerciseName": "Dead Bug with Band", "order": 8, "targetReps": 10, "targetWeight": null, "setType": "PT/Rehab", "restSeconds": 30, "notes": "Gentle core — band overhead, lower slow." },
+        { "exerciseName": "Foam Roller Glutes", "order": 9, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "60s each side." },
+        { "exerciseName": "Doorway Chest Stretch", "order": 10, "targetReps": 10, "targetWeight": null, "setType": "Stretch", "restSeconds": 0, "notes": "30s each side." },
+        { "exerciseName": "Running", "order": 11, "targetReps": 30, "targetWeight": null, "setType": "Working", "restSeconds": 0, "notes": "30 min treadmill — Sunday reset pace." }
+      ]
+    }
+  ]
+}

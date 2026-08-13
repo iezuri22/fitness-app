@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Design tokens
+
+   The look is iOS-native dark: true black ground, flat elevated surfaces,
+   one accent. Deliberately absent — gradients, colored shadows, ambient
+   background washes, decorative blur blobs. Depth comes from surface
+   lightness steps and hairline separators, nothing else.
+   ========================================================================== */
+
+@theme {
+  /* --- Ground & surfaces (iOS dark system grays) --- */
+  --color-bg: #000000;          /* page ground — true black */
+  --color-surface: #1c1c1e;     /* cards, sheets, grouped list bg */
+  --color-surface-2: #2c2c2e;   /* inputs, chips, controls on a card */
+  --color-surface-3: #3a3a3c;   /* pressed / selected control */
+
+  /* Hairlines. iOS separators are light at very low alpha, not gray fills. */
+  --color-separator: rgba(84, 84, 88, 0.5);
+  --color-border: rgba(84, 84, 88, 0.36);
+
+  /* --- Text. Alpha-based so it sits correctly on any surface step. --- */
+  --color-ink: #ffffff;
+  --color-muted: rgba(235, 235, 245, 0.6);    /* secondary — meta, subtitles */
+  --color-muted-2: rgba(235, 235, 245, 0.3);  /* tertiary — placeholders, inactive */
+
+  /* --- Accent. One blue. Used for the primary action and active state,
+         nothing else. iOS dark-mode system blue reads clean on black. --- */
+  --color-accent: #0a84ff;
+  --color-accent-pressed: #0a6fd8;
+  --color-accent-soft: rgba(10, 132, 255, 0.16);
+
+  /* --- Semantic. Reserved for genuine status, never for decoration. --- */
+  --color-success: #30d158;
+  --color-danger: #ff453a;
+  --color-warn: #ff9f0a;
+  --color-info: #64d2ff;
+
+  /* --- Radii. Restrained: cards 14, controls 12. Pills only for chips. --- */
+  --radius-card: 14px;
+  --radius-control: 12px;
+  --radius-thumb: 10px;
+  --radius-sheet: 16px;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+  /* Native feel: no gray tap flash, no accidental text zoom. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+}
+
+/* Element resets live in @layer base so Tailwind utilities still win —
+   unlayered rules would beat every text-*/font-* class on buttons/inputs. */
+@layer base {
+  input, button, textarea, select {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    touch-action: manipulation; /* kill the 300ms double-tap zoom delay */
+  }
+
+  /* Numbers that change in place — weights, reps, timers — must not reflow.
+     Every digit the same width is the difference between a jittery logger
+     and a calm one. */
+  input[type="number"],
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Keyboard-only focus ring — invisible for taps, obvious when tabbing. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Number inputs: no spinners, they crowd the set-logging row. */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* ------------------------------- Motion --------------------------------- */
+/* Short and flat. iOS transitions are quick and barely eased; long springy
+   entrances are the thing that makes an interface feel synthetic. */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes shimmer {
+  from { opacity: 0.5; }
+  to   { opacity: 1; }
+}
+/* Two-frame photo demos: hold each position, quick cross-fade between. */
+@keyframes frame-swap {
+  0%, 42%   { opacity: 0; }
+  58%, 100% { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out both;
+}
+.animate-sheet-up {
+  animation: sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.animate-backdrop-in {
+  animation: backdrop-in 0.24s ease-out both;
+}
+.animate-shimmer {
+  animation: shimmer 1s ease-in-out infinite alternate;
+}
+.animate-frame-swap {
+  animation: frame-swap 1.6s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-sheet-up,
+  .animate-backdrop-in,
+  .animate-shimmer,
+  .animate-frame-swap {
+    animation: none;
+  }
+}
+
+/* Hide scrollbars on horizontal rails while keeping them scrollable. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hairline separator between rows in a grouped list. Inset from the left so
+   it starts at the text, not the card edge — the iOS grouped-table detail
+   that makes a list read as one object instead of stacked strips. */
+.divide-rows > * + * {
+  border-top: 0.5px solid var(--color-separator);
+}

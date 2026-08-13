@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0e1a"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- Person deadlifting silhouette -->
+  <g fill="#0052ff">
+    <!-- head -->
+    <circle cx="256" cy="156" r="26"/>
+    <!-- torso/body -->
+    <path d="M 230 182 L 282 182 L 296 260 L 306 330 L 320 388 L 280 388 L 268 330 L 244 330 L 232 388 L 192 388 L 206 330 L 216 260 Z"/>
+    <!-- arms holding bar -->
+    <path d="M 218 220 L 168 290 L 168 316 L 156 316 L 156 290 Q 156 280 166 270 L 216 200 Z"/>
+    <path d="M 294 220 L 344 290 L 344 316 L 356 316 L 356 290 Q 356 280 346 270 L 296 200 Z"/>
+  </g>
+  <!-- Barbell across the bottom -->
+  <g fill="#ffffff">
+    <rect x="116" y="302" width="280" height="14" rx="7"/>
+    <rect x="84" y="278" width="36" height="62" rx="8"/>
+    <rect x="392" y="278" width="36" height="62" rx="8"/>
+    <rect x="64" y="290" width="22" height="38" rx="5"/>
+    <rect x="426" y="290" width="22" height="38" rx="5"/>
+  </g>
+</svg>

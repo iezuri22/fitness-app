@@ -1,0 +1,1027 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { getAmrapHistory, getWorkout, listExercises, saveWorkout, type AmrapResult } from "../lib/db";
+import { Button, Card, PageSkeleton, ProgressBar, Tag } from "../components/ui";
+import ExerciseGif from "../components/ExerciseGif";
+import RestTimer from "../components/RestTimer";
+import IntervalTimer from "../components/IntervalTimer";
+import ExercisePicker from "../components/ExercisePicker";
+import ManagePlanSheet from "../components/ManagePlanSheet";
+import SingleSetTimer from "../components/SingleSetTimer";
+import AmrapRunner from "../components/AmrapRunner";
+import FlowRunner from "../components/FlowRunner";
+import { defaultEstimatedMinutes } from "../lib/duration";
+import { demoUrlsForSets, prefetchInBackground } from "../lib/offlineDemos";
+import type { Exercise, PlannedSet, Workout } from "../lib/types";
+import { fmtDuration } from "../lib/dates";
+import {
+  buildBlocks,
+  interleaveSupersetSets,
+  type Block,
+} from "../lib/blocks";
+
+export default function WorkoutPage() {
+  const { workoutId } = useParams<{ workoutId: string }>();
+  const { user } = useAuth();
+  const nav = useNavigate();
+  const [workout, setWorkout] = useState<Workout | null>(null);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [restSec, setRestSec] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showFinish, setShowFinish] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [singleTimerSet, setSingleTimerSet] = useState<PlannedSet | null>(null);
+  const [intervalSetup, setIntervalSetup] = useState(false);
+  const [intervalRunning, setIntervalRunning] = useState<{
+    work: number;
+    rest: number;
+  } | null>(null);
+  const [amrapHistory, setAmrapHistory] = useState<AmrapResult[]>([]);
+  // "native" = the runner this workout's format calls for; "list" = the plain
+  // set table. Session-local on purpose — switching views is a look, not a
+  // preference worth persisting.
+  const [viewMode, setViewMode] = useState<"native" | "list">("native");
+
+  useEffect(() => {
+    if (!user || !workoutId) return;
+    let alive = true;
+    (async () => {
+      const [w, list] = await Promise.all([
+        getWorkout(user.uid, workoutId),
+        listExercises(user.uid),
+      ]);
+      if (!alive) return;
+      setWorkout(w);
+      setExercises(list);
+      // Warm the demo cache for the whole workout while we (probably) still
+      // have signal — scrolling to exercise 8 in a gym basement shouldn't be
+      // the first time its demo gets fetched.
+      if (w) {
+        const gifs = new Map(list.map((e) => [e.id, e.gifUrl]));
+        prefetchInBackground(demoUrlsForSets(w.plannedSets ?? [], gifs));
+      }
+      // AMRAPs are scored against past attempts, so pull previous results.
+      if (w?.format === "amrap" && w.fromTemplateId) {
+        const hist = await getAmrapHistory(user.uid, w.fromTemplateId);
+        if (alive) setAmrapHistory(hist);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user, workoutId]);
+
+  const gifByExerciseId = useMemo(() => {
+    const m = new Map<string, string | undefined>();
+    for (const ex of exercises) m.set(ex.id, ex.gifUrl);
+    return m;
+  }, [exercises]);
+
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!workout) {
+    return (
+      <div className="min-h-full max-w-xl mx-auto p-6">
+        <PageSkeleton rows={5} />
+      </div>
+    );
+  }
+
+  // Format picks the default runner; "View as list" drops to the plain set
+  // table, which every format can fall back to because they all store their
+  // work in plannedSets.
+  const nativeView = viewMode === "native";
+
+  if (workout.format === "amrap" && nativeView) {
+    return (
+      <>
+        <AmrapRunner
+          workout={workout}
+          history={amrapHistory}
+          gifByExerciseId={gifByExerciseId}
+          onManage={() => setManageOpen(true)}
+          onViewAsList={() => setViewMode("list")}
+          onFinish={async (rounds, extra) => {
+            if (!user) return;
+            await saveWorkout(user.uid, workout.id, {
+              status: "completed",
+              completedAt: Date.now(),
+              startedAt: workout.startedAt ?? Date.now(),
+              roundsCompleted: rounds,
+              extraReps: extra,
+            });
+            nav(`/history/${workout.id}`, { replace: true });
+          }}
+        />
+        {manageOpen && (
+          <ManagePlanSheet
+            workout={workout}
+            exercises={exercises}
+            gifByExerciseId={gifByExerciseId}
+            onChange={replaceSets}
+            onClose={() => setManageOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
+
+  if (workout.format === "flow" && nativeView) {
+    return (
+      <>
+        <FlowRunner
+          workout={workout}
+          gifByExerciseId={gifByExerciseId}
+          onComplete={(s) =>
+            void patchSet(s.id, {
+              completedAt: Date.now(),
+              actualReps: s.actualReps ?? s.targetReps,
+              actualWeight: s.actualWeight ?? s.targetWeight,
+            })
+          }
+          onFinish={() => void finishWorkout()}
+          onManage={() => setManageOpen(true)}
+          onViewAsList={() => setViewMode("list")}
+        />
+        {manageOpen && (
+          <ManagePlanSheet
+            workout={workout}
+            exercises={exercises}
+            gifByExerciseId={gifByExerciseId}
+            onChange={replaceSets}
+            onClose={() => setManageOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
+
+  const blocks = buildBlocks(workout);
+  const completedCount = workout.plannedSets.filter((s) => s.completedAt).length;
+  const totalCount = workout.plannedSets.length;
+
+  async function patchSet(id: string, patch: Partial<PlannedSet>) {
+    if (!user || !workout) return;
+    const updated = workout.plannedSets.map((s) => (s.id === id ? { ...s, ...patch } : s));
+    const newW = { ...workout, plannedSets: updated };
+    setWorkout(newW);
+    setSaving(true);
+    try {
+      await saveWorkout(user.uid, workout.id, { plannedSets: updated });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleSetDone(set: PlannedSet) {
+    if (set.completedAt) {
+      // Un-complete (undo accidental check)
+      await patchSet(set.id, { completedAt: undefined });
+      return;
+    }
+    await patchSet(set.id, {
+      completedAt: Date.now(),
+      actualReps: set.actualReps ?? set.targetReps,
+      actualWeight: set.actualWeight ?? set.targetWeight,
+    });
+    // No auto rest-timer — user opens it manually from header if they want one.
+  }
+
+  async function replaceSets(nextSets: PlannedSet[]) {
+    if (!user || !workout) return;
+    const newW = { ...workout, plannedSets: nextSets };
+    setWorkout(newW);
+    setSaving(true);
+    try {
+      await saveWorkout(user.uid, workout.id, { plannedSets: nextSets });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addSetToExercise(exerciseId: string) {
+    if (!workout) return;
+    const groupSets = workout.plannedSets.filter((s) => s.exerciseId === exerciseId);
+    const last = groupSets[groupSets.length - 1];
+    if (!last) return;
+    const maxOrder = Math.max(...workout.plannedSets.map((s) => s.order), 0);
+    const newSet: PlannedSet = {
+      id: crypto.randomUUID(),
+      exerciseId: last.exerciseId,
+      exerciseName: last.exerciseName,
+      order: maxOrder + 1,
+      targetReps: last.targetReps,
+      targetWeight: last.targetWeight,
+      setType: last.setType,
+      restSeconds: last.restSeconds,
+      estimatedMinutes:
+        last.estimatedMinutes ?? defaultEstimatedMinutes(last.exerciseName),
+      notes: "",
+      completedAt: null,
+    };
+    const lastIdx = workout.plannedSets.findIndex((s) => s.id === last.id);
+    const nextSets = [...workout.plannedSets];
+    nextSets.splice(lastIdx + 1, 0, newSet);
+    await replaceSets(nextSets);
+  }
+
+  async function addExerciseMid(ex: Exercise) {
+    if (!workout) return;
+    const maxOrder = Math.max(...workout.plannedSets.map((s) => s.order), 0);
+    const newSet: PlannedSet = {
+      id: crypto.randomUUID(),
+      exerciseId: ex.id,
+      exerciseName: ex.name,
+      order: maxOrder + 1,
+      targetReps: ex.defaultReps ?? 10,
+      targetWeight: ex.defaultWeight,
+      setType: ex.isPT ? "PT/Rehab" : "Working",
+      restSeconds: 60,
+      estimatedMinutes: defaultEstimatedMinutes(ex.name),
+      notes: "",
+      completedAt: null,
+    };
+    await replaceSets([...workout.plannedSets, newSet]);
+    setPickerOpen(false);
+  }
+
+  async function finishWorkout() {
+    if (!user || !workout) return;
+    await saveWorkout(user.uid, workout.id, {
+      status: "completed",
+      completedAt: Date.now(),
+    });
+    nav(`/history/${workout.id}`, { replace: true });
+  }
+
+  return (
+    <div className="min-h-full max-w-xl mx-auto flex flex-col">
+      {/* Header */}
+      <header
+        className="sticky top-0 z-20 border-b border-[color:var(--color-separator)] bg-[color:var(--color-bg)]/85 px-4 pb-2.5 backdrop-blur-xl"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 10px)" }}
+      >
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <button
+            onClick={() => nav("/")}
+            aria-label="Back to Today"
+            className="-ml-1 flex shrink-0 items-center text-[color:var(--color-accent)] active:opacity-60"
+          >
+            <svg width="11" height="18" viewBox="0 0 11 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 1.5 2 9 9 16.5" />
+            </svg>
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <div className="truncate text-[16px] font-semibold tracking-[-0.01em]">
+              {workout.title}
+            </div>
+            <div className="text-[12px] tnum text-[color:var(--color-muted)]">
+              {completedCount} of {totalCount} sets
+              {saving && <span className="opacity-70"> · saving…</span>}
+            </div>
+          </div>
+          <div className="shrink-0 text-[16px] font-semibold tnum">
+            {fmtDuration(now - (workout.startedAt ?? now))}
+          </div>
+        </div>
+
+        <ProgressBar value={completedCount} max={totalCount} />
+
+        {/* Session tools. Plain text actions — they're used occasionally, so
+            they shouldn't compete with the set rows for attention. */}
+        <div className="mt-2.5 flex items-center justify-between text-[14px] text-[color:var(--color-accent)]">
+          <button onClick={() => setManageOpen(true)} className="active:opacity-60">
+            Manage
+          </button>
+          {workout.format && workout.format !== "standard" ? (
+            // Only shown when there's a runner to go back to.
+            <button onClick={() => setViewMode("native")} className="active:opacity-60">
+              {workout.format === "flow" ? "Guided view" : "Scored view"}
+            </button>
+          ) : (
+            <button onClick={() => setRestSec(60)} className="active:opacity-60">
+              Rest 60s
+            </button>
+          )}
+          <button onClick={() => setIntervalSetup(true)} className="active:opacity-60">
+            Play all timers
+          </button>
+        </div>
+      </header>
+
+      <div className="space-y-4 p-4 pb-36">
+        {workout.notes && (
+          <Card>
+            <div className="text-[13px] text-[color:var(--color-muted)]">Note</div>
+            <p className="mt-1 text-[15px] leading-snug">{workout.notes}</p>
+          </Card>
+        )}
+        {blocks.map((b) => (
+          <BlockSection
+            key={b.kind === "exercise" ? `ex:${b.exerciseId}` : `ss:${b.supersetGroupId}`}
+            block={b}
+            gifByExerciseId={gifByExerciseId}
+            onPatch={patchSet}
+            onToggle={toggleSetDone}
+            onAddSetToExercise={addSetToExercise}
+            onStartSetTimer={(s) => setSingleTimerSet(s)}
+          />
+        ))}
+
+        {!showFinish ? (
+          <Button size="lg" block onClick={() => setShowFinish(true)}>
+            Finish workout
+          </Button>
+        ) : (
+          <Card>
+            <div className="text-[17px] font-semibold tracking-[-0.01em]">
+              Finish this workout?
+            </div>
+            {completedCount < totalCount && (
+              <div className="mt-1 text-[15px] text-[color:var(--color-muted)]">
+                {totalCount - completedCount}{" "}
+                {totalCount - completedCount === 1 ? "set is" : "sets are"} still
+                unlogged — they'll be saved as skipped.
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={() => setShowFinish(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" className="flex-1" onClick={finishWorkout}>
+                Finish
+              </Button>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {restSec !== null && (
+        <RestTimer
+          seconds={restSec}
+          onDone={() => setRestSec(null)}
+          onCancel={() => setRestSec(null)}
+        />
+      )}
+
+      {manageOpen && (
+        <ManagePlanSheet
+          workout={workout}
+          exercises={exercises}
+          gifByExerciseId={gifByExerciseId}
+          onChange={replaceSets}
+          onClose={() => setManageOpen(false)}
+        />
+      )}
+
+      {pickerOpen && (
+        <ExercisePicker
+          exercises={exercises}
+          existingExerciseIds={new Set(workout.plannedSets.map((s) => s.exerciseId))}
+          onPick={addExerciseMid}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {singleTimerSet && (
+        <SingleSetTimer
+          set={singleTimerSet}
+          onComplete={(s) =>
+            patchSet(s.id, {
+              completedAt: Date.now(),
+              actualReps: s.actualReps ?? s.targetReps,
+              actualWeight: s.actualWeight ?? s.targetWeight,
+            })
+          }
+          onClose={() => setSingleTimerSet(null)}
+        />
+      )}
+
+      {intervalSetup && (
+        <IntervalSetupSheet
+          onStart={(work, rest) => {
+            setIntervalSetup(false);
+            setIntervalRunning({ work, rest });
+          }}
+          onClose={() => setIntervalSetup(false)}
+        />
+      )}
+
+      {intervalRunning && (
+        <IntervalTimer
+          sets={workout.plannedSets.filter((s) => s.workSeconds != null)}
+          workSeconds={intervalRunning.work}
+          restSeconds={intervalRunning.rest}
+          onSetComplete={(s) =>
+            patchSet(s.id, {
+              completedAt: Date.now(),
+              actualReps: s.actualReps ?? s.targetReps,
+              actualWeight: s.actualWeight ?? s.targetWeight,
+            })
+          }
+          onClose={() => setIntervalRunning(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Bottom-sheet picker for work/rest seconds before starting the interval timer. */
+function IntervalSetupSheet({
+  onStart,
+  onClose,
+}: {
+  onStart: (work: number, rest: number) => void;
+  onClose: () => void;
+}) {
+  const [work, setWork] = useState(45);
+  const [rest, setRest] = useState(15);
+
+  const presets = [
+    { label: "30 / 15", work: 30, rest: 15 },
+    { label: "45 / 15", work: 45, rest: 15 },
+    { label: "60 / 20", work: 60, rest: 20 },
+    { label: "40 / 20", work: 40, rest: 20 },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <button
+        aria-label="Dismiss"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+      <div
+        className="animate-sheet-up relative w-full max-w-xl rounded-t-[16px] bg-[color:var(--color-surface)] px-6 pb-8 pt-2"
+        style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-[17px] font-semibold tracking-[-0.01em]">Interval timer</div>
+          <button
+            onClick={onClose}
+            className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
+          >
+            Cancel
+          </button>
+        </div>
+
+        <p className="mb-4 text-[15px] leading-snug text-[color:var(--color-muted)]">
+          Runs through your remaining sets back-to-back. Alarm sounds at every
+          transition; each finished set auto-marks complete.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <label className="block">
+            <span className="text-[13px] text-[color:var(--color-muted)]">
+              Work (sec)
+            </span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={5}
+              max={600}
+              value={work}
+              onChange={(e) => setWork(Math.max(5, Number(e.target.value) || 0))}
+              className="mt-1 h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] tnum outline-none focus:bg-[color:var(--color-surface-3)]"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[13px] text-[color:var(--color-muted)]">
+              Rest (sec)
+            </span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={600}
+              value={rest}
+              onChange={(e) => setRest(Math.max(0, Number(e.target.value) || 0))}
+              className="mt-1 h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] tnum outline-none focus:bg-[color:var(--color-surface-3)]"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          {presets.map((p) => (
+            <button
+              key={p.label}
+              onClick={() => {
+                setWork(p.work);
+                setRest(p.rest);
+              }}
+              className="rounded-full bg-[color:var(--color-surface-2)] px-3.5 py-1.5 text-[13px] font-medium text-[color:var(--color-muted)] transition-colors active:bg-[color:var(--color-surface-3)]"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => onStart(work, rest)}
+          className="w-full rounded-xl bg-[color:var(--color-accent)] py-3.5 text-[17px] font-semibold text-white transition-colors active:bg-[color:var(--color-accent-pressed)]"
+        >
+          Start interval
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Non-working set types get a letter instead of a number —
+ *  W = warm-up, PT = rehab, S = stretch, D = drop set. */
+function setTypeBadge(t: PlannedSet["setType"]): { label: string; cls: string } | null {
+  switch (t) {
+    case "Warm-up":
+      return { label: "W", cls: "text-[color:var(--color-warn)]" };
+    case "PT/Rehab":
+      return { label: "PT", cls: "text-[color:var(--color-info)]" };
+    case "Stretch":
+      return { label: "S", cls: "text-[color:var(--color-info)]" };
+    case "Drop":
+      return { label: "D", cls: "text-[color:var(--color-danger)]" };
+    default:
+      return null;
+  }
+}
+
+/**
+ * One set as a Fitbod-style table row: [type/number chip] [lb] [reps]
+ * [timer-or-note] [check]. Column labels are rendered once per card by the
+ * parent BlockSection.
+ */
+function SetRow({
+  set,
+  index,
+  label,
+  labelTint,
+  onPatch,
+  onToggle,
+  onStartTimer,
+}: {
+  set: PlannedSet;
+  index: number;
+  /** Override chip text (superset rows pass "A1"/"B1"). */
+  label?: string;
+  /** Chip tint for superset rows: member A = accent, member B = info. */
+  labelTint?: "accent" | "info";
+  onPatch: (patch: Partial<PlannedSet>) => void;
+  onToggle: () => void;
+  onStartTimer?: () => void;
+}) {
+  const done = !!set.completedAt;
+  const [notesOpen, setNotesOpen] = useState(false);
+  const badge = setTypeBadge(set.setType);
+  const chipText = label ?? badge?.label ?? String(index);
+  const chipCls = label
+    ? labelTint === "info"
+      ? "text-[color:var(--color-info)]"
+      : "text-[color:var(--color-accent)]"
+    : badge?.cls ?? "text-[color:var(--color-muted)]";
+  const showTimer = onStartTimer && set.workSeconds != null && !done;
+
+  return (
+    <div className="px-3 py-1">
+      <div className="flex items-center gap-2">
+        <div
+          className={`w-8 shrink-0 text-center text-[15px] font-medium tnum ${
+            done ? "text-[color:var(--color-muted-2)]" : chipCls
+          }`}
+        >
+          {chipText}
+        </div>
+        <BareNumber
+          ariaLabel="Weight (lb)"
+          value={set.actualWeight ?? set.targetWeight ?? 0}
+          onChange={(v) => onPatch({ actualWeight: v })}
+          done={done}
+        />
+        <BareNumber
+          ariaLabel="Reps"
+          value={set.actualReps ?? set.targetReps}
+          onChange={(v) => onPatch({ actualReps: v })}
+          done={done}
+        />
+        {showTimer ? (
+          <button
+            type="button"
+            onClick={onStartTimer}
+            className="flex h-9 shrink-0 items-center gap-1 rounded-[10px] bg-[color:var(--color-surface-2)] px-2.5 text-[13px] font-medium tnum text-[color:var(--color-accent)] active:bg-[color:var(--color-surface-3)]"
+            aria-label={`Start ${set.workSeconds} second timer`}
+          >
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 4 20 12 6 20 6 4" />
+            </svg>
+            {set.workSeconds}s
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setNotesOpen((o) => !o)}
+            aria-label={set.userNotes ? "Edit note" : "Add note"}
+            className={`grid size-9 shrink-0 place-items-center rounded-[10px] transition-colors ${
+              set.userNotes || notesOpen
+                ? "text-[color:var(--color-accent)]"
+                : "text-[color:var(--color-muted-2)]"
+            }`}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        )}
+        {/* 36px tap target (gym-glove friendly) around a 26px mark, so a
+            column of finished sets confirms without shouting. */}
+        <button
+          onClick={onToggle}
+          aria-label={done ? "Mark set incomplete" : "Mark set complete"}
+          className="grid size-9 shrink-0 place-items-center rounded-full"
+        >
+          <span
+            className={`grid size-[26px] place-items-center rounded-full transition-colors ${
+              done
+                ? "bg-[color:var(--color-success)] text-white"
+                : "bg-[color:var(--color-surface-2)] text-[color:var(--color-muted-2)]"
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </span>
+        </button>
+      </div>
+      {(notesOpen || set.userNotes) && (
+        <textarea
+          value={set.userNotes ?? ""}
+          onChange={(e) => onPatch({ userNotes: e.target.value })}
+          placeholder="How did it feel?"
+          className="mb-1 mt-2 w-full resize-none rounded-[10px] bg-[color:var(--color-surface-2)] p-2.5 text-[15px] outline-none placeholder:text-[color:var(--color-muted-2)]"
+          rows={2}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The lb / reps cells. A logged set goes quiet — transparent and muted —
+ * so the eye lands on the row you still have to do, not the ten you already
+ * finished.
+ */
+function BareNumber({
+  value,
+  onChange,
+  done,
+  ariaLabel,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  done: boolean;
+  ariaLabel: string;
+}) {
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      value={value || ""}
+      placeholder="—"
+      onChange={(e) => onChange(Number(e.target.value))}
+      onFocus={(e) => e.currentTarget.select()}
+      className={`h-9 min-w-0 flex-1 rounded-[10px] text-center text-[16px] font-medium tnum outline-none transition-colors ${
+        done
+          ? "bg-transparent text-[color:var(--color-muted)]"
+          : "bg-[color:var(--color-surface-2)] focus:bg-[color:var(--color-surface-3)]"
+      }`}
+    />
+  );
+}
+
+/** Column labels above the set rows — shares the row's flex proportions. */
+function SetColumnLabels() {
+  return (
+    <div className="flex items-center gap-2 px-3 pb-1 text-[12px] text-[color:var(--color-muted-2)]">
+      <span className="w-8 shrink-0 text-center">Set</span>
+      <span className="flex-1 text-center">lb</span>
+      <span className="flex-1 text-center">Reps</span>
+      <span className="w-9 shrink-0" />
+      <span className="w-9 shrink-0" />
+    </div>
+  );
+}
+
+/**
+ * Renders one "block" in the workout — either a single exercise or a superset
+ * of 2+ exercises. Pure execution view: no reorder/link controls (those live
+ * in ManagePlanSheet to keep this screen focused on logging sets).
+ */
+/**
+ * A finished exercise, folded down to one row: small thumb, name, what you
+ * actually lifted, and a check. Tap anywhere to reopen and edit.
+ *
+ * Deliberately lighter than a live block — smaller thumbnail, muted summary —
+ * so a screen of completed work reads as background rather than competing with
+ * the set you're on.
+ */
+function CollapsedBlock({
+  title,
+  summary,
+  thumbName,
+  thumbUrl,
+  onExpand,
+}: {
+  title: string;
+  summary: string;
+  thumbName: string;
+  thumbUrl?: string;
+  onExpand: () => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[14px] bg-[color:var(--color-surface)]">
+      <button
+        type="button"
+        onClick={onExpand}
+        aria-expanded={false}
+        aria-label={`${title} — done. Show sets`}
+        className="flex w-full items-center gap-3 p-3 text-left transition-colors active:bg-[color:var(--color-surface-2)]"
+      >
+        <ExerciseGif name={thumbName} gifUrl={thumbUrl} size="mini" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[16px] leading-tight tracking-[-0.01em] text-[color:var(--color-muted)]">
+            {title}
+          </div>
+          <div className="mt-0.5 truncate text-[13px] tnum text-[color:var(--color-muted-2)]">
+            {summary}
+          </div>
+        </div>
+        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[color:var(--color-success)] text-white">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </span>
+        <svg
+          className="shrink-0 text-[color:var(--color-muted-2)]"
+          width="12" height="8" viewBox="0 0 12 8" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          aria-hidden
+        >
+          <polyline points="1 1.5 6 6.5 11 1.5" />
+        </svg>
+      </button>
+    </section>
+  );
+}
+
+/**
+ * "3 × 15 @ 10 lb" — consecutive identical sets collapse into one term, so a
+ * straight-across block reads as one phrase and a ramp reads as its steps.
+ */
+function summarizeSets(sets: PlannedSet[]): string {
+  type Run = { reps: number; weight?: number; secs?: number; count: number };
+  const runs: Run[] = [];
+  for (const s of sets) {
+    const reps = s.actualReps ?? s.targetReps;
+    const weight = s.actualWeight ?? s.targetWeight ?? undefined;
+    const secs = s.workSeconds ?? undefined;
+    const last = runs[runs.length - 1];
+    if (last && last.reps === reps && last.weight === weight && last.secs === secs) {
+      last.count += 1;
+    } else {
+      runs.push({ reps, weight, secs, count: 1 });
+    }
+  }
+  if (runs.length === 0) return "";
+  // A long ramp would overflow the row; past three terms just give the count.
+  if (runs.length > 3) return `${sets.length} sets`;
+  return runs
+    .map((r) =>
+      r.secs != null
+        ? `${r.count} × ${r.secs}s`
+        : `${r.count} × ${r.reps}${r.weight ? ` @ ${r.weight} lb` : ""}`
+    )
+    .join(" · ");
+}
+
+function BlockSection({
+  block,
+  gifByExerciseId,
+  onPatch,
+  onToggle,
+  onAddSetToExercise,
+  onStartSetTimer,
+}: {
+  block: Block;
+  gifByExerciseId: Map<string, string | undefined>;
+  onPatch: (id: string, patch: Partial<PlannedSet>) => void;
+  onToggle: (set: PlannedSet) => void;
+  onAddSetToExercise: (exerciseId: string) => void;
+  onStartSetTimer: (set: PlannedSet) => void;
+}) {
+  // Tapping the thumbnail expands a full-width demo. Kept collapsed by default
+  // so the set table stays the focus, but the demo is one tap away mid-set.
+  const [demoOpen, setDemoOpen] = useState(false);
+
+  // A finished exercise folds down to one summary row, so the sets you still
+  // have to do stay near the top of the screen instead of behind three screens
+  // of already-logged work.
+  //
+  // `manualOpen` is a deliberate override: null means "follow completion".
+  // Resetting it whenever `blockDone` flips means finishing a block collapses
+  // it even if you'd expanded it by hand, and un-checking a set re-opens it.
+  const blockSets =
+    block.kind === "exercise" ? block.sets : block.members.flatMap((m) => m.sets);
+  const blockDone = blockSets.length > 0 && blockSets.every((s) => !!s.completedAt);
+  const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+  useEffect(() => {
+    setManualOpen(null);
+  }, [blockDone]);
+  const collapsed = manualOpen === null ? blockDone : !manualOpen;
+
+  if (block.kind === "exercise") {
+    const isPT = block.sets.some((s) => s.setType === "PT/Rehab");
+    const groupDone = blockDone;
+    const groupCount = block.sets.filter((s) => s.completedAt).length;
+    // Cues live on every set of the block; show it once, under the name.
+    const blockCue = block.sets.find((s) => s.notes)?.notes;
+
+    if (collapsed) {
+      return (
+        <CollapsedBlock
+          title={block.exerciseName}
+          summary={summarizeSets(block.sets)}
+          thumbName={block.exerciseName}
+          thumbUrl={gifByExerciseId.get(block.exerciseId)}
+          onExpand={() => setManualOpen(true)}
+        />
+      );
+    }
+
+    return (
+      <section className="overflow-hidden rounded-[14px] bg-[color:var(--color-surface)]">
+        {/* Card header — thumb (tap to expand demo), name, progress */}
+        <div className="flex items-center gap-3 p-3">
+          <button
+            type="button"
+            onClick={() => setDemoOpen((o) => !o)}
+            aria-label={demoOpen ? "Hide demo" : "Show demo"}
+            aria-expanded={demoOpen}
+            className="shrink-0 overflow-hidden rounded-[10px] active:opacity-70"
+          >
+            <ExerciseGif
+              name={block.exerciseName}
+              gifUrl={gifByExerciseId.get(block.exerciseId)}
+              size="thumb"
+            />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[16px] font-semibold leading-tight tracking-[-0.01em]">
+              {block.exerciseName}
+            </h2>
+            <div className="mt-0.5 text-[13px] tnum text-[color:var(--color-muted)]">
+              {groupCount} of {block.sets.length} sets
+              {isPT && " · PT"}
+            </div>
+            {blockCue && (
+              <div className="mt-1 text-[13px] leading-snug text-[color:var(--color-muted)]">
+                {blockCue}
+              </div>
+            )}
+          </div>
+          {groupDone && (
+            <div className="grid size-6 shrink-0 place-items-center rounded-full bg-[color:var(--color-success)] text-white">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {demoOpen && (
+          <div className="px-3 pb-3">
+            <ExerciseGif
+              name={block.exerciseName}
+              gifUrl={gifByExerciseId.get(block.exerciseId)}
+              size="banner"
+            />
+          </div>
+        )}
+
+        <SetColumnLabels />
+        <div className="pb-1">
+          {block.sets.map((s, i) => (
+            <SetRow
+              key={s.id}
+              set={s}
+              index={i + 1}
+              onPatch={(patch) => onPatch(s.id, patch)}
+              onToggle={() => onToggle(s)}
+              onStartTimer={s.workSeconds != null ? () => onStartSetTimer(s) : undefined}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onAddSetToExercise(block.exerciseId)}
+          className="w-full border-t border-[color:var(--color-separator)] py-2.5 text-[15px] text-[color:var(--color-accent)] active:bg-[color:var(--color-surface-2)]"
+        >
+          Add set
+        </button>
+      </section>
+    );
+  }
+
+  // Superset block
+  const interleaved = interleaveSupersetSets(block);
+  const allSets = block.members.flatMap((m) => m.sets);
+  const doneCount = allSets.filter((s) => s.completedAt).length;
+  const isPT = allSets.some((s) => s.setType === "PT/Rehab");
+
+  if (collapsed) {
+    return (
+      <CollapsedBlock
+        title={block.members.map((m) => m.exerciseName).join(" + ")}
+        summary={`Superset · ${summarizeSets(allSets)}`}
+        thumbName={block.members[0].exerciseName}
+        thumbUrl={gifByExerciseId.get(block.members[0].exerciseId)}
+        onExpand={() => setManualOpen(true)}
+      />
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-[14px] bg-[color:var(--color-surface)]">
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Tag variant="accent">Superset</Tag>
+              {isPT && <Tag variant="info">PT</Tag>}
+            </div>
+            <h2 className="mt-1.5 truncate text-[16px] font-semibold leading-tight tracking-[-0.01em]">
+              {block.members.map((m) => m.exerciseName).join(" + ")}
+            </h2>
+            <div className="mt-0.5 text-[13px] tnum text-[color:var(--color-muted)]">
+              {doneCount} of {allSets.length} sets · alternate A → B
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setDemoOpen((o) => !o)}
+          aria-expanded={demoOpen}
+          aria-label={demoOpen ? "Hide demos" : "Show demos"}
+          className="mt-3 grid w-full grid-cols-2 gap-2 text-left"
+        >
+          {block.members.map((m, mi) => (
+            <div
+              key={m.exerciseId}
+              className="flex min-w-0 items-center gap-2 rounded-[10px] bg-[color:var(--color-surface-2)] p-2"
+            >
+              <span
+                className={`shrink-0 text-[13px] font-semibold ${
+                  mi === 0
+                    ? "text-[color:var(--color-accent)]"
+                    : "text-[color:var(--color-info)]"
+                }`}
+              >
+                {String.fromCharCode(65 + mi)}
+              </span>
+              <ExerciseGif
+                name={m.exerciseName}
+                gifUrl={gifByExerciseId.get(m.exerciseId)}
+                size={demoOpen ? "card" : "mini"}
+              />
+              <div className="line-clamp-2 min-w-0 text-[13px] leading-tight">
+                {m.exerciseName}
+              </div>
+            </div>
+          ))}
+        </button>
+      </div>
+
+      <SetColumnLabels />
+      <div className="pb-2">
+        {interleaved.map((step) => (
+          <SetRow
+            key={step.set.id}
+            set={step.set}
+            index={step.round + 1}
+            label={`${String.fromCharCode(65 + step.memberIndex)}${step.round + 1}`}
+            labelTint={step.memberIndex === 0 ? "accent" : "info"}
+            onPatch={(patch) => onPatch(step.set.id, patch)}
+            onToggle={() => onToggle(step.set)}
+            onStartTimer={step.set.workSeconds != null ? () => onStartSetTimer(step.set) : undefined}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+

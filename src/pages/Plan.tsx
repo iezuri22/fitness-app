@@ -1,0 +1,597 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import {
+  deleteWorkout,
+  getWeeklyGoals,
+  listTemplates,
+  listWorkoutsInRange,
+  saveWeeklyGoals,
+  saveWorkout,
+  startWorkoutFromTemplate,
+} from "../lib/db";
+import {
+  Button,
+  Card,
+  Group,
+  PageHeader,
+  PageSkeleton,
+  Row,
+  SectionHeader,
+  Sheet,
+  SheetHeader,
+} from "../components/ui";
+import { autoPlanWeek } from "../lib/autoPlan";
+import type { WorkoutTemplate } from "../lib/types";
+import { todayStr, weekRange } from "../lib/dates";
+import { estimatePlannedMinutes, formatMinutes } from "../lib/timeEstimate";
+import type { Workout } from "../lib/types";
+import {
+  DEFAULT_GOALS,
+  KINDS,
+  countByKind,
+  plannedByKind,
+  type WeeklyGoals,
+  type WorkoutKind,
+} from "../lib/weeklyGoals";
+
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/**
+ * Week planner — lay out which workout happens on which day.
+ *
+ * Scheduling a template creates a `planned` Workout doc dated for that day, so
+ * it flows straight into Today when the date arrives (Today reads workouts
+ * where date === today). Picking happens over in Library via
+ * `/library?date=YYYY-MM-DD`, which returns here afterwards.
+ *
+ * `weekOffset` shifts the Mon–Sun window: 0 = this week, 1 = next, -1 = last.
+ */
+export default function Plan() {
+  const { user } = useAuth();
+  const nav = useNavigate();
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [workouts, setWorkouts] = useState<Workout[] | null>(null);
+  const [goals, setGoals] = useState<WeeklyGoals>(DEFAULT_GOALS);
+  const [editingGoals, setEditingGoals] = useState(false);
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
+  const [planning, setPlanning] = useState(false);
+  const [planMsg, setPlanMsg] = useState<string | null>(null);
+  const [moving, setMoving] = useState<Workout | null>(null);
+
+  const today = todayStr();
+  const { start, end } = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + weekOffset * 7);
+    return weekRange(d);
+  }, [weekOffset]);
+
+  const days = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(start, i)),
+    [start]
+  );
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    const [ws, g, t] = await Promise.all([
+      listWorkoutsInRange(user.uid, start, end),
+      getWeeklyGoals(user.uid),
+      listTemplates(user.uid),
+    ]);
+    setWorkouts(ws);
+    setGoals(g);
+    setTemplates(t);
+  }, [user, start, end]);
+
+  /** Fill every empty day from the weekly goals. Never overwrites. */
+  async function planWeek() {
+    if (!user || planning) return;
+    setPlanning(true);
+    setPlanMsg(null);
+    try {
+      const busy = new Set((workouts ?? []).map((w) => w.date));
+      // Look back a fortnight so the plan doesn't repeat last week's sessions.
+      const priorStart = addDays(start, -14);
+      const prior = await listWorkoutsInRange(user.uid, priorStart, addDays(start, -1));
+      const { items, shortfalls } = autoPlanWeek({
+        days,
+        busyDates: busy,
+        goals,
+        templates,
+        recentNames: new Set(prior.map((w) => w.title)),
+        // Don't back-fill days that have already passed.
+        notBefore: weekOffset === 0 ? today : undefined,
+      });
+      if (!items.length) {
+        setPlanMsg(
+          busy.size >= days.length
+            ? "Every day already has something scheduled."
+            : "Nothing to schedule — check your goals and that your library has workouts."
+        );
+        return;
+      }
+      for (const item of items) {
+        await startWorkoutFromTemplate(user.uid, item.template, { date: item.date });
+      }
+      await load();
+      const missed = shortfalls
+        .filter((s) => s.got < s.wanted)
+        .map((s) => `${s.kind} (${s.got}/${s.wanted})`);
+      setPlanMsg(
+        `Scheduled ${items.length} session${items.length === 1 ? "" : "s"}.` +
+          (missed.length ? ` Couldn't fill: ${missed.join(", ")}.` : "")
+      );
+    } catch (e) {
+      console.error("[Plan] autoplan failed:", e);
+      setPlanMsg("Couldn't plan the week — try again.");
+    } finally {
+      setPlanning(false);
+    }
+  }
+
+  /** Move a scheduled workout to a different day. */
+  async function moveWorkout(w: Workout, toDate: string) {
+    if (!user) return;
+    setMoving(null);
+    setWorkouts((prev) =>
+      (prev ?? []).map((x) => (x.id === w.id ? { ...x, date: toDate } : x))
+    );
+    await saveWorkout(user.uid, w.id, { date: toDate });
+  }
+
+  async function updateGoal(kind: WorkoutKind, delta: number) {
+    if (!user) return;
+    const next = { ...goals, [kind]: Math.max(0, Math.min(14, goals[kind] + delta)) };
+    setGoals(next);
+    await saveWeeklyGoals(user.uid, next);
+  }
+
+  useEffect(() => {
+    setWorkouts(null);
+    load();
+  }, [load]);
+
+  async function removeWorkout(w: Workout) {
+    if (!user) return;
+    if (!confirm(`Remove "${w.title}" from ${prettyDay(w.date)}?`)) return;
+    setWorkouts((prev) => (prev ?? []).filter((x) => x.id !== w.id));
+    await deleteWorkout(user.uid, w.id);
+  }
+
+  const byDate = useMemo(() => {
+    const m = new Map<string, Workout[]>();
+    for (const w of workouts ?? []) {
+      if (!m.has(w.date)) m.set(w.date, []);
+      m.get(w.date).push(w);
+    }
+    // morning-pt first, then strength, then anything untagged
+    const rank = (w: Workout) => (w.slot === "morning-pt" ? 0 : w.slot === "strength" ? 1 : 2);
+    for (const list of m.values()) list.sort((a, b) => rank(a) - rank(b));
+    return m;
+  }, [workouts]);
+
+  const done = useMemo(() => countByKind(workouts ?? []), [workouts]);
+  const planned = useMemo(() => plannedByKind(workouts ?? []), [workouts]);
+
+  const stats = useMemo(() => {
+    const all = workouts ?? [];
+    const planned = all.filter((w) => w.status !== "skipped");
+    const minutes = planned.reduce((sum, w) => sum + estimatePlannedMinutes(w), 0);
+    const done = all.filter((w) => w.status === "completed").length;
+    return { count: planned.length, minutes, done };
+  }, [workouts]);
+
+  if (workouts === null) return <PageSkeleton rows={6} />;
+
+  const label =
+    weekOffset === 0 ? "This week" : weekOffset === 1 ? "Next week" : weekOffset === -1 ? "Last week" : `${start} – ${end}`;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Plan" subtitle="Your training week" />
+
+      {/* Week switcher */}
+      <div className="flex items-center justify-between gap-3">
+        <ArrowButton dir="prev" onClick={() => setWeekOffset((w) => w - 1)} />
+        <div className="min-w-0 text-center">
+          <div className="truncate text-[16px] font-semibold tracking-[-0.01em]">
+            {label}
+          </div>
+          <div className="text-[13px] tnum text-[color:var(--color-muted)]">
+            {short(start)} – {short(end)}
+          </div>
+        </div>
+        <ArrowButton dir="next" onClick={() => setWeekOffset((w) => w + 1)} />
+      </div>
+
+      <section>
+        <SectionHeader
+          title="Weekly goals"
+          action={
+            <button
+              type="button"
+              onClick={() => setEditingGoals((v) => !v)}
+              className="text-[15px] text-[color:var(--color-accent)] active:opacity-60"
+            >
+              {editingGoals ? "Done" : "Edit"}
+            </button>
+          }
+        />
+        <Card>
+          <div className="space-y-4">
+            {KINDS.map((k) => (
+              <GoalBar
+                key={k.key}
+                label={k.label}
+                hint={k.hint}
+                done={done[k.key]}
+                planned={planned[k.key]}
+                goal={goals[k.key]}
+                editing={editingGoals}
+                onChange={(d) => void updateGoal(k.key, d)}
+              />
+            ))}
+          </div>
+          {!editingGoals && (
+            <div className="mt-4 flex items-center justify-between border-t border-[color:var(--color-separator)] pt-3 text-[13px] tnum text-[color:var(--color-muted)]">
+              <span>{stats.count} scheduled this week</span>
+              <span>{stats.minutes > 0 ? formatMinutes(stats.minutes) : "—"} total</span>
+            </div>
+          )}
+        </Card>
+      </section>
+
+      <div className="flex gap-2">
+        <Button className="flex-1" onClick={planWeek} disabled={planning}>
+          {planning ? "Planning…" : "Plan my week"}
+        </Button>
+        <Link to={`/log-class?date=${today}`} className="flex-1">
+          <Button variant="secondary" className="w-full">
+            Log a class
+          </Button>
+        </Link>
+      </div>
+      {planMsg && (
+        <Card>
+          <div className="text-[13px] text-[color:var(--color-muted)]">{planMsg}</div>
+        </Card>
+      )}
+
+      <div className="space-y-6">
+        {days.map((date, i) => (
+          <DayRow
+            key={date}
+            dayName={DAY_NAMES[i]}
+            date={date}
+            isToday={date === today}
+            isPast={date < today}
+            workouts={byDate.get(date) ?? []}
+            onRemove={removeWorkout}
+            onMove={setMoving}
+            onOpen={(w) =>
+              nav(w.status === "completed" ? `/history/${w.id}` : `/workout/${w.id}`)
+            }
+          />
+        ))}
+      </div>
+
+      <p className="pt-1 text-center text-[13px] text-[color:var(--color-muted-2)]">
+        Scheduled workouts show up on Today when the day arrives.
+      </p>
+
+      {moving && (
+        <MoveSheet
+          workout={moving}
+          days={days}
+          dayNames={DAY_NAMES}
+          onPick={(d) => void moveWorkout(moving, d)}
+          onClose={() => setMoving(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Bottom sheet for moving a workout to a different day of the week. */
+function MoveSheet({
+  workout,
+  days,
+  dayNames,
+  onPick,
+  onClose,
+}: {
+  workout: Workout;
+  days: string[];
+  dayNames: string[];
+  onPick: (date: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet onClose={onClose} label={`Move ${workout.title}`}>
+      <SheetHeader title="Move to" onCancel={onClose} />
+      <div className="overflow-y-auto px-4 pb-6">
+        <p className="mb-3 truncate text-[13px] text-[color:var(--color-muted)]">
+          {workout.title}
+        </p>
+        <Group>
+          {days.map((d, i) => {
+            const current = d === workout.date;
+            return (
+              <Row
+                key={d}
+                title={dayNames[i]}
+                value={current ? "Currently here" : short(d)}
+                onClick={current ? undefined : () => onPick(d)}
+                trailing={current ? <CheckMark /> : undefined}
+              />
+            );
+          })}
+        </Group>
+      </div>
+    </Sheet>
+  );
+}
+
+function CheckMark() {
+  return (
+    <svg
+      className="shrink-0 text-[color:var(--color-accent)]"
+      width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+/* ------------------------------- Day row ------------------------------- */
+
+function DayRow({
+  dayName,
+  date,
+  isToday,
+  isPast,
+  workouts,
+  onRemove,
+  onMove,
+  onOpen,
+}: {
+  dayName: string;
+  date: string;
+  isToday: boolean;
+  isPast: boolean;
+  workouts: Workout[];
+  onRemove: (w: Workout) => void;
+  onMove: (w: Workout) => void;
+  onOpen: (w: Workout) => void;
+}) {
+  return (
+    <section className={isPast && !isToday ? "opacity-50" : ""}>
+      <SectionHeader
+        title={dayName}
+        action={
+          <span className="flex items-center gap-2.5">
+            <span className="text-[13px] tnum text-[color:var(--color-muted)]">
+              {isToday ? "Today" : short(date)}
+            </span>
+            <Link
+              to={`/library?date=${date}`}
+              aria-label={`Add a workout on ${dayName}`}
+              className="text-[15px] text-[color:var(--color-accent)] active:opacity-60"
+            >
+              Add
+            </Link>
+          </span>
+        }
+      />
+      {workouts.length === 0 ? (
+        <Group>
+          <Row
+            to={`/library?date=${date}`}
+            title={<span className="text-[color:var(--color-muted)]">Rest day</span>}
+            trailing={
+              <span className="text-[15px] text-[color:var(--color-accent)]">Schedule</span>
+            }
+          />
+        </Group>
+      ) : (
+        <Group>
+          {workouts.map((w) => (
+            <PlannedRow key={w.id} workout={w} onRemove={onRemove} onMove={onMove} onOpen={onOpen} />
+          ))}
+        </Group>
+      )}
+    </section>
+  );
+}
+
+function PlannedRow({
+  workout: w,
+  onRemove,
+  onMove,
+  onOpen,
+}: {
+  workout: Workout;
+  onRemove: (w: Workout) => void;
+  onMove: (w: Workout) => void;
+  onOpen: (w: Workout) => void;
+}) {
+  const isPT = w.slot === "morning-pt" || w.category === "PT Only";
+  const done = w.status === "completed";
+  const mins = estimatePlannedMinutes(w);
+  return (
+    <Row
+      onClick={() => onOpen(w)}
+      leading={
+        <span
+          className={`block size-2 shrink-0 rounded-full ${
+            done
+              ? "bg-[color:var(--color-success)]"
+              : isPT
+              ? "bg-[color:var(--color-info)]"
+              : "bg-[color:var(--color-accent)]"
+          }`}
+        />
+      }
+      title={w.title}
+      subtitle={`${w.plannedSets.length} sets · ~${formatMinutes(mins)}${done ? " · done" : ""}`}
+      trailing={
+        !done && (
+          // Move / remove stay on the row rather than behind a menu — the
+          // whole point of this screen is shuffling the week around.
+          <span className="flex shrink-0 items-center">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove(w);
+              }}
+              aria-label={`Move ${w.title} to another day`}
+              className="grid size-9 place-items-center text-[color:var(--color-muted-2)] active:text-white"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="17 11 21 7 17 3" />
+                <line x1="21" y1="7" x2="9" y2="7" />
+                <polyline points="7 13 3 17 7 21" />
+                <line x1="15" y1="17" x2="3" y2="17" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(w);
+              }}
+              aria-label={`Remove ${w.title}`}
+              className="grid size-9 place-items-center text-[color:var(--color-muted-2)] active:text-[color:var(--color-danger)]"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </span>
+        )
+      }
+    />
+  );
+}
+
+/* -------------------------------- Bits --------------------------------- */
+
+/**
+ * One goal row: filled segments for completed, outlined for merely scheduled,
+ * so you can see at a glance whether the week is *planned* to hit the target
+ * versus already there.
+ */
+function GoalBar({
+  label,
+  hint,
+  done,
+  planned,
+  goal,
+  editing,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  done: number;
+  planned: number;
+  goal: number;
+  editing: boolean;
+  onChange: (delta: number) => void;
+}) {
+  const hit = done >= goal && goal > 0;
+  const segments = Math.max(goal, planned, 1);
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[15px] tracking-[-0.01em]">{label}</div>
+          <div className="text-[13px] text-[color:var(--color-muted-2)]">{hint}</div>
+        </div>
+        {editing ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <StepBtn label="−" onClick={() => onChange(-1)} />
+            <span className="w-5 text-center text-[15px] font-medium tnum">{goal}</span>
+            <StepBtn label="+" onClick={() => onChange(1)} />
+          </div>
+        ) : (
+          <div className="shrink-0 text-[15px] tnum text-[color:var(--color-muted)]">
+            <span className={hit ? "text-[color:var(--color-success)]" : "text-white"}>
+              {done}
+            </span>
+            {" / "}
+            {goal}
+          </div>
+        )}
+      </div>
+      {/* Segments: solid = done, faint = merely scheduled. Lets you see
+          whether the week is *planned* to hit target versus already there. */}
+      <div className="mt-2 flex gap-1">
+        {Array.from({ length: segments }, (_, i) => {
+          const isDone = i < done;
+          const isPlanned = !isDone && i < planned;
+          return (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full ${
+                isDone
+                  ? hit
+                    ? "bg-[color:var(--color-success)]"
+                    : "bg-[color:var(--color-accent)]"
+                  : isPlanned
+                  ? "bg-[color:var(--color-accent)]/35"
+                  : "bg-[color:var(--color-surface-3)]"
+              }`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StepBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="grid size-7 place-items-center rounded-full bg-[color:var(--color-surface-2)] text-[15px] text-[color:var(--color-accent)] active:bg-[color:var(--color-surface-3)]"
+    >
+      {label}
+    </button>
+  );
+}
+
+function ArrowButton({ dir, onClick }: { dir: "prev" | "next"; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={dir === "prev" ? "Previous week" : "Next week"}
+      className="grid size-9 shrink-0 place-items-center rounded-full text-[color:var(--color-accent)] active:opacity-60"
+    >
+      <svg width="11" height="18" viewBox="0 0 11 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        {dir === "prev" ? <polyline points="9 1.5 2 9 9 16.5" /> : <polyline points="2 1.5 9 9 2 16.5" />}
+      </svg>
+    </button>
+  );
+}
+
+/* ------------------------------- Helpers ------------------------------- */
+
+function addDays(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return todayStr(new Date(y, m - 1, d + n));
+}
+/** "2026-08-12" → "8/12" */
+function short(iso: string): string {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${m}/${d}`;
+}
+function prettyDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long" });
+}

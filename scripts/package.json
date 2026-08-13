@@ -1,0 +1,14 @@
+{
+  "name": "lift-admin-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Admin SDK scripts for Lift — seed/push/manage Firestore from the command line. Not part of the web app.",
+  "type": "module",
+  "scripts": {
+    "push": "node push-weekly-workouts.mjs",
+    "dry-run": "node push-weekly-workouts.mjs --dry-run"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.1"
+  }
+}
