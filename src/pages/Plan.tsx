@@ -13,7 +13,6 @@ import {
 import {
   Card,
   Group,
-  PageHeader,
   PageSkeleton,
   Row,
   SectionHeader,
@@ -199,6 +198,14 @@ export default function Plan() {
     return { count: planned.length, minutes, done };
   }, [workouts]);
 
+  /**
+   * Tapping a day's workout opens its detail page, not the runner — you're
+   * usually checking what's in it, not starting it from here. `from` lets that
+   * page send you back to the week you were looking at instead of Today.
+   */
+  const detailHref = (w: Workout) =>
+    `${w.status === "completed" ? "/history" : "/planned"}/${w.id}?from=/plan`;
+
   const totalDone = KINDS.reduce((n, k) => n + Math.min(done[k.key], goals[k.key]), 0);
   const totalGoal = KINDS.reduce((n, k) => n + goals[k.key], 0);
 
@@ -209,20 +216,24 @@ export default function Plan() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Plan" subtitle="Your training week" />
-
-      {/* Week switcher */}
+      {/* Title and week switcher share a row — they're both "which week am I
+          looking at", and stacking them cost a third of the screen. */}
       <div className="flex items-center justify-between gap-3">
-        <ArrowButton dir="prev" onClick={() => setWeekOffset((w) => w - 1)} />
-        <div className="min-w-0 text-center">
-          <div className="truncate text-[16px] font-semibold tracking-[-0.01em]">
-            {label}
+        <h1 className="shrink-0 text-[26px] font-bold leading-none tracking-[-0.02em]">
+          Plan
+        </h1>
+        <div className="flex min-w-0 items-center gap-1">
+          <ArrowButton dir="prev" onClick={() => setWeekOffset((w) => w - 1)} />
+          <div className="min-w-0 text-center">
+            <div className="truncate text-[15px] font-semibold tracking-[-0.01em]">
+              {label}
+            </div>
+            <div className="text-[12px] tnum text-[color:var(--color-muted)]">
+              {short(start)} – {short(end)}
+            </div>
           </div>
-          <div className="text-[13px] tnum text-[color:var(--color-muted)]">
-            {short(start)} – {short(end)}
-          </div>
+          <ArrowButton dir="next" onClick={() => setWeekOffset((w) => w + 1)} />
         </div>
-        <ArrowButton dir="next" onClick={() => setWeekOffset((w) => w + 1)} />
       </div>
 
       <section>
@@ -317,9 +328,7 @@ export default function Plan() {
             workouts={byDate.get(date) ?? []}
             onRemove={removeWorkout}
             onMove={setMoving}
-            onOpen={(w) =>
-              nav(w.status === "completed" ? `/history/${w.id}` : `/workout/${w.id}`)
-            }
+            onOpen={(w) => nav(detailHref(w))}
           />
         ))}
 
@@ -336,9 +345,7 @@ export default function Plan() {
                 workouts={byDate.get(date) ?? []}
                 onRemove={removeWorkout}
                 onMove={setMoving}
-                onOpen={(w) =>
-                  nav(w.status === "completed" ? `/history/${w.id}` : `/workout/${w.id}`)
-                }
+                onOpen={(w) => nav(detailHref(w))}
               />
             ))}
           </>

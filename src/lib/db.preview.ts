@@ -293,6 +293,20 @@ if (flow) {
   });
 }
 
+// A planned standard workout whose exercises have history, so the targets
+// review has something to propose in preview.
+workouts.push({
+  id: "w-today-plan",
+  date: todayStr(),
+  slot: "strength",
+  title: "Gym · Pull A",
+  focus: "Back & biceps",
+  status: "planned",
+  category: "Full",
+  plannedSets: pullDay(),
+  createdAt: Date.now() - 30_000,
+});
+
 let goals: WeeklyGoals = normalizeGoals({ gym: 3, amrap: 1, home: 1, pt: 4, class: 0 });
 
 /* ------------------------------ Same API as db --------------------------- */

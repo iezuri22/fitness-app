@@ -27,6 +27,7 @@ export default function FlowRunner({
   onFinish,
   onManage,
   onViewAsList,
+  backTo,
 }: {
   workout: Workout;
   gifByExerciseId: Map<string, string | undefined>;
@@ -35,6 +36,8 @@ export default function FlowRunner({
   onFinish: () => void;
   onManage: () => void;
   onViewAsList: () => void;
+  /** Where the back chevron returns to. */
+  backTo: string;
 }) {
   const nav = useNavigate();
 
@@ -119,8 +122,8 @@ export default function FlowRunner({
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 10px)" }}
       >
         <button
-          onClick={() => nav("/")}
-          aria-label="Back to Today"
+          onClick={() => nav(backTo)}
+          aria-label="Back"
           className="-ml-1 flex shrink-0 items-center text-[color:var(--color-accent)] active:opacity-60"
         >
           <svg width="11" height="18" viewBox="0 0 11 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

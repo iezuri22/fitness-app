@@ -20,6 +20,8 @@ import Generate from "./pages/Generate";
 import LogClass from "./pages/LogClass";
 import Recommend from "./pages/Recommend";
 import Body from "./pages/Body";
+import Vitamins from "./pages/Vitamins";
+import ReviewTargets from "./pages/ReviewTargets";
 
 export default function App() {
   return (
@@ -39,6 +41,8 @@ export default function App() {
               <Route path="/generate" element={<Generate />} />
               <Route path="/recommend" element={<Recommend />} />
               <Route path="/body" element={<Body />} />
+              <Route path="/vitamins" element={<Vitamins />} />
+              <Route path="/workout/:workoutId/review" element={<ReviewTargets />} />
               <Route path="/body/:part" element={<Body />} />
               <Route path="/log-class" element={<LogClass />} />
               <Route path="/library" element={<Library />} />

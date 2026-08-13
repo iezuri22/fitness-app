@@ -13,7 +13,7 @@ import {
 } from "../components/ui";
 import { useAuth } from "../hooks/useAuth";
 import SupplementCard from "../components/SupplementCard";
-import { listTemplates, listWorkoutsInRange, saveWorkout } from "../lib/db";
+import { listTemplates, listWorkoutsInRange } from "../lib/db";
 import { prettyDate, todayStr, weekRange } from "../lib/dates";
 import { setMinutes } from "../lib/timeEstimate";
 import {
@@ -123,8 +123,12 @@ export default function Today() {
 
   async function resumeActive(w: Workout) {
     if (!user) return;
+    // A workout that hasn't started yet gets the targets review first; it
+    // redirects straight into the runner when there's nothing to confirm.
+    // Resuming skips it — you're mid-session, the numbers are already set.
     if (w.status === "planned") {
-      await saveWorkout(user.uid, w.id, { status: "in_progress", startedAt: Date.now() });
+      nav(`/workout/${w.id}/review`);
+      return;
     }
     nav(`/workout/${w.id}`);
   }

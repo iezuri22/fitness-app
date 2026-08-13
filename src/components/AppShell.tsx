@@ -22,7 +22,7 @@ const TABS: Array<{
   { to: "/plan", label: "Plan", Icon: PlanIcon },
   { to: "/library", label: "Routines", Icon: RoutinesIcon },
   { to: "/exercises", label: "Exercises", Icon: ExercisesIcon },
-  { to: "/history", label: "History", Icon: HistoryIcon },
+  { to: "/vitamins", label: "Vitamins", Icon: VitaminsIcon },
 ];
 
 export default function AppShell() {
@@ -194,19 +194,21 @@ function ExercisesIcon({ filled }: { filled: boolean }) {
   );
 }
 
-function HistoryIcon({ filled }: { filled: boolean }) {
+function VitaminsIcon({ filled }: { filled: boolean }) {
+  // A capsule reads as "supplement" far faster than a pill-bottle silhouette
+  // at 25px.
   if (filled) {
     return (
       <svg {...S} fill="currentColor">
-        <path d="M12 2a10 10 0 1 1-7.07 2.93l-.68-.68A1 1 0 0 1 4.96 2.5h4.3a1 1 0 0 1 1 1v4.3a1 1 0 0 1-1.71.7l-1.2-1.2A7 7 0 1 0 12 5a1 1 0 1 1 0-2zm0 5a1 1 0 0 1 1 1v3.59l2.2 2.2a1 1 0 0 1-1.4 1.42l-2.5-2.5A1 1 0 0 1 11 12V8a1 1 0 0 1 1-1z" />
+        <path d="M6.3 6.3a4.7 4.7 0 0 1 6.65 0l4.75 4.75a4.7 4.7 0 1 1-6.65 6.65L6.3 12.95a4.7 4.7 0 0 1 0-6.65zm1.06 6.3l3.34 3.34 4.24-4.24-3.34-3.34-4.24 4.24z" />
       </svg>
     );
   }
   return (
     <svg {...S} {...stroke}>
-      <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" />
-      <polyline points="3 4.5 3 9 7.5 9" />
-      <polyline points="12 7.5 12 12 15 14" />
+      <rect x="2.6" y="7.4" width="18.8" height="9.2" rx="4.6" transform="rotate(45 12 12)" />
+      <line x1="8.7" y1="8.7" x2="15.3" y2="15.3" />
     </svg>
   );
 }
+

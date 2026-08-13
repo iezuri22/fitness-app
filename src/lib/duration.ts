@@ -38,7 +38,56 @@ export function defaultEstimatedMinutes(exerciseName: string): number {
   return 2;
 }
 
+/**
+ * Machines and modalities measured in time rather than reps.
+ *
+ * Matched anywhere in the name, not just at the start — the old anchored
+ * version missed every machine whose name didn't lead with the modality
+ * ("Assault Bike", "Stair Climber (StairMaster)", "Rowing Machine (Erg)").
+ *
+ * The phrases are deliberately specific. A bare "row" would swallow every
+ * Seated Cable Row in the library and turn a back exercise into a cardio
+ * block, so rowing only matches as "rowing machine" / "row erg".
+ */
+const TIME_BASED_PHRASES = [
+  "treadmill",
+  "rowing machine",
+  "row erg",
+  "ski erg",
+  "ergometer",
+  "stair climber",
+  "stairmaster",
+  "stair mill",
+  "elliptical",
+  "assault bike",
+  "air bike",
+  "stationary bike",
+  "exercise bike",
+  "spin bike",
+  "jump rope",
+  "jacobs ladder",
+  "running",
+  "jog",
+  "cycling",
+  "sled push",
+  "sled drag",
+];
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * True when this exercise should be logged as a duration instead of reps.
+ * Used to pick the right set-row controls and to seed a sensible default
+ * length when the exercise is added to a workout.
+ */
+export function isTimeBasedExercise(name: string): boolean {
+  const n = ` ${norm(name)} `;
+  if (TIME_BASED_PHRASES.some((p) => n.includes(` ${p} `))) return true;
+  // "Walk" on its own is cardio; "Farmer Walk" and "Walking Lunge" are not.
+  if (/\b(walk|walking)\b/.test(n) && !/farmer|lunge|suitcase|carry/.test(n)) return true;
+  return false;
+}
+
 function isCardioName(name: string): boolean {
-  const n = name.toLowerCase();
-  return /^(running|jog|walk|treadmill|bike|row|cycling)/.test(n);
+  return isTimeBasedExercise(name);
 }

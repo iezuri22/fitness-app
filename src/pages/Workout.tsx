@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getAmrapHistory, getWorkout, listExercises, saveWorkout, type AmrapResult } from "../lib/db";
 import { Button, Card, PageSkeleton, ProgressBar, Tag } from "../components/ui";
@@ -11,7 +11,7 @@ import ManagePlanSheet from "../components/ManagePlanSheet";
 import SingleSetTimer from "../components/SingleSetTimer";
 import AmrapRunner from "../components/AmrapRunner";
 import FlowRunner from "../components/FlowRunner";
-import { defaultEstimatedMinutes } from "../lib/duration";
+import { defaultEstimatedMinutes, isTimeBasedExercise } from "../lib/duration";
 import { demoUrlsForSets, prefetchInBackground } from "../lib/offlineDemos";
 import type { Exercise, PlannedSet, Workout } from "../lib/types";
 import { fmtDuration } from "../lib/dates";
@@ -23,6 +23,9 @@ import {
 
 export default function WorkoutPage() {
   const { workoutId } = useParams<{ workoutId: string }>();
+  const [searchParams] = useSearchParams();
+  // Where "back" goes. Set by whoever linked here; Today is the sane default.
+  const backTo = searchParams.get("from") || "/";
   const { user } = useAuth();
   const nav = useNavigate();
   const [workout, setWorkout] = useState<Workout | null>(null);
@@ -107,6 +110,7 @@ export default function WorkoutPage() {
           gifByExerciseId={gifByExerciseId}
           onManage={() => setManageOpen(true)}
           onViewAsList={() => setViewMode("list")}
+          backTo={backTo}
           onFinish={async (rounds, extra) => {
             if (!user) return;
             await saveWorkout(user.uid, workout.id, {
@@ -148,6 +152,7 @@ export default function WorkoutPage() {
           onFinish={() => void finishWorkout()}
           onManage={() => setManageOpen(true)}
           onViewAsList={() => setViewMode("list")}
+          backTo={backTo}
         />
         {manageOpen && (
           <ManagePlanSheet
@@ -244,6 +249,11 @@ export default function WorkoutPage() {
       setType: ex.isPT ? "PT/Rehab" : "Working",
       restSeconds: 60,
       estimatedMinutes: defaultEstimatedMinutes(ex.name),
+      // Treadmill / rower / stair climber are logged as a duration, so seed
+      // one rather than making the user convert the set by hand.
+      workSeconds: isTimeBasedExercise(ex.name)
+        ? defaultEstimatedMinutes(ex.name) * 60
+        : undefined,
       notes: "",
       completedAt: null,
     };
@@ -269,8 +279,8 @@ export default function WorkoutPage() {
       >
         <div className="mb-2 flex items-center justify-between gap-3">
           <button
-            onClick={() => nav("/")}
-            aria-label="Back to Today"
+            onClick={() => nav(backTo)}
+            aria-label="Back"
             className="-ml-1 flex shrink-0 items-center text-[color:var(--color-accent)] active:opacity-60"
           >
             <svg width="11" height="18" viewBox="0 0 11 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -584,7 +594,10 @@ function SetRow({
       ? "text-[color:var(--color-info)]"
       : "text-[color:var(--color-accent)]"
     : badge?.cls ?? "text-[color:var(--color-muted)]";
-  const showTimer = onStartTimer && set.workSeconds != null && !done;
+  // A set with a duration is measured in time, not reps — rowing, treadmill,
+  // stair climber, timed holds.
+  const timed = set.workSeconds != null;
+  const showTimer = onStartTimer && timed && !done;
 
   return (
     <div className="px-3 py-1">
@@ -596,18 +609,28 @@ function SetRow({
         >
           {chipText}
         </div>
-        <BareNumber
-          ariaLabel="Weight (lb)"
-          value={set.actualWeight ?? set.targetWeight ?? 0}
-          onChange={(v) => onPatch({ actualWeight: v })}
-          done={done}
-        />
-        <BareNumber
-          ariaLabel="Reps"
-          value={set.actualReps ?? set.targetReps}
-          onChange={(v) => onPatch({ actualReps: v })}
-          done={done}
-        />
+        {timed ? (
+          <DurationCell
+            seconds={set.workSeconds ?? 0}
+            onChange={(secs) => onPatch({ workSeconds: secs })}
+            done={done}
+          />
+        ) : (
+          <>
+            <BareNumber
+              ariaLabel="Weight (lb)"
+              value={set.actualWeight ?? set.targetWeight ?? 0}
+              onChange={(v) => onPatch({ actualWeight: v })}
+              done={done}
+            />
+            <BareNumber
+              ariaLabel="Reps"
+              value={set.actualReps ?? set.targetReps}
+              onChange={(v) => onPatch({ actualReps: v })}
+              done={done}
+            />
+          </>
+        )}
         {showTimer ? (
           <button
             type="button"
@@ -705,14 +728,76 @@ function BareNumber({
 }
 
 /** Column labels above the set rows — shares the row's flex proportions. */
-function SetColumnLabels() {
+function SetColumnLabels({ timed = false }: { timed?: boolean }) {
   return (
     <div className="flex items-center gap-2 px-3 pb-1 text-[12px] text-[color:var(--color-muted-2)]">
       <span className="w-8 shrink-0 text-center">Set</span>
-      <span className="flex-1 text-center">lb</span>
-      <span className="flex-1 text-center">Reps</span>
+      {timed ? (
+        <span className="flex-1 text-center">Time</span>
+      ) : (
+        <>
+          <span className="flex-1 text-center">lb</span>
+          <span className="flex-1 text-center">Reps</span>
+        </>
+      )}
       <span className="w-9 shrink-0" />
       <span className="w-9 shrink-0" />
+    </div>
+  );
+}
+
+/**
+ * Duration field for a timed set, edited in minutes and seconds.
+ *
+ * Minutes is the unit people think in for a cardio block, but holds are
+ * usually sub-minute, so both are editable and the seconds box only shows a
+ * value when it's not a round number of minutes.
+ */
+function DurationCell({
+  seconds,
+  onChange,
+  done,
+}: {
+  seconds: number;
+  onChange: (seconds: number) => void;
+  done: boolean;
+}) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  const cls = `h-9 min-w-0 flex-1 rounded-[10px] text-center text-[16px] font-medium tnum outline-none transition-colors ${
+    done
+      ? "bg-transparent text-[color:var(--color-muted)]"
+      : "bg-[color:var(--color-surface-2)] focus:bg-[color:var(--color-surface-3)]"
+  }`;
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <input
+        type="number"
+        inputMode="numeric"
+        aria-label="Minutes"
+        min={0}
+        value={mins || ""}
+        placeholder="0"
+        onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0) * 60 + secs)}
+        onFocus={(e) => e.currentTarget.select()}
+        className={cls}
+      />
+      <span className="shrink-0 text-[13px] text-[color:var(--color-muted-2)]">m</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        aria-label="Seconds"
+        min={0}
+        max={59}
+        value={secs || ""}
+        placeholder="0"
+        onChange={(e) =>
+          onChange(mins * 60 + Math.max(0, Math.min(59, Number(e.target.value) || 0)))
+        }
+        onFocus={(e) => e.currentTarget.select()}
+        className={cls}
+      />
+      <span className="shrink-0 text-[13px] text-[color:var(--color-muted-2)]">s</span>
     </div>
   );
 }
@@ -913,7 +998,7 @@ function BlockSection({
           </div>
         )}
 
-        <SetColumnLabels />
+        <SetColumnLabels timed={block.sets.every((x) => x.workSeconds != null)} />
         <div className="pb-1">
           {block.sets.map((s, i) => (
             <SetRow

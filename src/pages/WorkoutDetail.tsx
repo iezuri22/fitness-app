@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { deleteWorkout, getWorkout, listExercises, saveWorkout } from "../lib/db";
 import type { Exercise, PlannedSet, Workout } from "../lib/types";
@@ -16,6 +16,7 @@ import PlanEditor from "../components/PlanEditor";
 
 export default function WorkoutDetail() {
   const { workoutId } = useParams<{ workoutId: string }>();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const nav = useNavigate();
   const [workout, setWorkout] = useState<Workout | null | undefined>(undefined);
@@ -50,14 +51,17 @@ export default function WorkoutDetail() {
   // Planned workouts are freely editable; anything started or finished is a
   // record, so it's read-only here.
   const isEditable = workout.status === "planned";
-  // An in-progress workout was almost certainly opened from Today's card, so
-  // sending it "back to History" would be a dead end.
-  const [backTo, backLabel] =
-    workout.status === "planned"
-      ? (["/planned", "Planned"] as const)
-      : workout.status === "in_progress"
-      ? (["/", "Today"] as const)
-      : (["/history", "History"] as const);
+  // Where the user actually came from wins over a guess based on status —
+  // opening a Friday workout from Plan and being returned to Today is
+  // disorienting. Falls back to a status-based guess for direct links.
+  const from = searchParams.get("from");
+  const [backTo, backLabel] = from
+    ? ([from, from === "/plan" ? "Plan" : from === "/" ? "Today" : "Back"] as const)
+    : workout.status === "planned"
+    ? (["/planned", "Planned"] as const)
+    : workout.status === "in_progress"
+    ? (["/", "Today"] as const)
+    : (["/history", "History"] as const);
 
   async function onDelete() {
     if (!user || !workout) return;
@@ -130,7 +134,17 @@ export default function WorkoutDetail() {
       )}
 
       {workout.status !== "completed" && (
-        <Button size="lg" block onClick={() => nav(`/workout/${workout.id}`)}>
+        <Button
+          size="lg"
+          block
+          onClick={() =>
+            nav(
+              workout.status === "planned"
+                ? `/workout/${workout.id}/review?from=${encodeURIComponent(backTo)}`
+                : `/workout/${workout.id}?from=${encodeURIComponent(backTo)}`
+            )
+          }
+        >
           {workout.status === "in_progress" ? "Resume workout" : "Start workout"}
         </Button>
       )}

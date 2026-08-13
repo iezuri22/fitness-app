@@ -11,12 +11,7 @@ import {
   SectionHeader,
 } from "../components/ui";
 import { buildDateLabel, forceRefresh } from "../lib/appUpdate";
-import {
-  getSupplements,
-  listExercises,
-  saveSupplements,
-  type SupplementItem,
-} from "../lib/db";
+import { listExercises } from "../lib/db";
 import {
   countCached,
   demoUrlsForLibrary,
@@ -37,52 +32,9 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
-  // Supplement definitions. Edited locally and flushed on blur / structural
-  // change, so typing a name isn't one write per keystroke.
-  const [supplements, setSupplements] = useState<SupplementItem[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-    let alive = true;
-    void getSupplements(user.uid).then((s) => {
-      if (alive) setSupplements(s);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [user]);
 
-  const persist = useCallback(
-    (next: SupplementItem[]) => {
-      setSupplements(next);
-      if (user) void saveSupplements(user.uid, next);
-    },
-    [user]
-  );
 
-  function addItem() {
-    persist([
-      ...supplements,
-      { id: crypto.randomUUID(), name: "", order: supplements.length },
-    ]);
-  }
-  function renameItem(id: string, name: string) {
-    setSupplements((s) => s.map((it) => (it.id === id ? { ...it, name } : it)));
-  }
-  function commitItems() {
-    // Drop blanks on the way out so an abandoned "Add" doesn't linger on Today.
-    persist(supplements.filter((it) => it.name.trim() !== ""));
-  }
-  function removeItem(id: string) {
-    persist(supplements.filter((it) => it.id !== id));
-  }
-  function moveItem(i: number, delta: number) {
-    const j = i + delta;
-    if (j < 0 || j >= supplements.length) return;
-    const next = [...supplements];
-    [next[i], next[j]] = [next[j], next[i]];
-    persist(next);
-  }
 
   const loadDemoState = useCallback(async () => {
     if (!user) return;
@@ -196,70 +148,6 @@ export default function Settings() {
             </>
           )}
         </Card>
-      </section>
-
-      <section>
-        <SectionHeader
-          title="Supplements"
-          action={
-            <button
-              onClick={addItem}
-              className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
-            >
-              Add
-            </button>
-          }
-        />
-        {supplements.length === 0 ? (
-          <Card>
-            <div className="text-[15px] leading-snug text-[color:var(--color-muted)]">
-              Add what you take — vitamin D, creatine, a protein shake — and it'll
-              show up on Today as a checklist.
-            </div>
-          </Card>
-        ) : (
-          <Group>
-            {supplements.map((it, i) => (
-              <Row
-                key={it.id}
-                title={
-                  <input
-                    value={it.name}
-                    onChange={(e) => renameItem(it.id, e.target.value)}
-                    onBlur={commitItems}
-                    placeholder="Name"
-                    aria-label="Supplement name"
-                    className="w-full bg-transparent text-[16px] outline-none placeholder:text-[color:var(--color-muted-2)]"
-                  />
-                }
-                trailing={
-                  <span className="flex shrink-0 items-center">
-                    <button
-                      onClick={() => moveItem(i, -1)}
-                      disabled={i === 0}
-                      aria-label={`Move ${it.name} up`}
-                      className="grid size-9 place-items-center text-[color:var(--color-muted-2)] disabled:opacity-30"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="18 15 12 9 6 15" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => removeItem(it.id)}
-                      aria-label={`Remove ${it.name}`}
-                      className="grid size-9 place-items-center text-[color:var(--color-muted-2)] active:text-[color:var(--color-danger)]"
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </span>
-                }
-              />
-            ))}
-          </Group>
-        )}
       </section>
 
       <section>
