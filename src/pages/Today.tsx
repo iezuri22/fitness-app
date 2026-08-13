@@ -378,7 +378,7 @@ function UpNext({
         {/* Two explicit actions: look at what's in it, or swap it out. Before
             this, opening a workout to see the exercises meant starting it. */}
         <div className="flex shrink-0 items-center gap-3 pt-0.5 text-[15px] text-[color:var(--color-accent)]">
-          <Link to={`/planned/${workout.id}`} className="active:opacity-60">
+          <Link to={`/planned/${workout.id}?from=/`} className="active:opacity-60">
             View
           </Link>
           <button onClick={onChange} className="active:opacity-60">
@@ -451,7 +451,7 @@ function SessionRow({
             <span className="text-[13px] text-[color:var(--color-accent)]">Up next</span>
           ) : (
             <Link
-              to={`/planned/${active.id}`}
+              to={`/planned/${active.id}?from=/`}
               onClick={(e) => e.stopPropagation()}
               className="shrink-0 px-1 text-[15px] text-[color:var(--color-accent)] active:opacity-60"
             >

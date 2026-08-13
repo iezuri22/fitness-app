@@ -58,7 +58,9 @@ export default function WorkoutDetail() {
   const [backTo, backLabel] = from
     ? ([from, from === "/plan" ? "Plan" : from === "/" ? "Today" : "Back"] as const)
     : workout.status === "planned"
-    ? (["/planned", "Planned"] as const)
+    // Deliberately Today, not the /planned list — that page has no inbound
+    // links anywhere in the app, so sending someone there is a dead end.
+    ? (["/", "Today"] as const)
     : workout.status === "in_progress"
     ? (["/", "Today"] as const)
     : (["/history", "History"] as const);
