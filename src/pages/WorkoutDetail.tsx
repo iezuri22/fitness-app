@@ -94,7 +94,7 @@ export default function WorkoutDetail() {
       {workout.format === "amrap" && typeof workout.roundsCompleted === "number" && (
         <Card className="text-center">
           <div className="text-[13px] text-[color:var(--color-muted)]">
-            {workout.capMinutes ?? 20} min AMRAP · score
+            {workout.capMinutes ?? 20} min · rounds completed
           </div>
           <div className="mt-1 text-[56px] font-semibold leading-none tnum tracking-[-0.03em]">
             {workout.roundsCompleted}
@@ -102,6 +102,30 @@ export default function WorkoutDetail() {
           <div className="mt-1.5 text-[15px] text-[color:var(--color-muted)]">
             rounds{workout.extraReps ? ` + ${workout.extraReps} reps` : ""}
           </div>
+        </Card>
+      )}
+
+      {workout.format === "amrap" && workout.status !== "completed" && (
+        <Card>
+          <div className="text-[16px] tracking-[-0.01em]">
+            {workout.capMinutes ?? 20} min · as many rounds as possible
+          </div>
+          <p className="mt-1.5 text-[15px] leading-snug text-[color:var(--color-muted)]">
+            The exercises below are one round. Repeat them until the clock runs
+            out; your score is how many rounds you finish.
+          </p>
+        </Card>
+      )}
+
+      {workout.format === "flow" && workout.status !== "completed" && (
+        <Card>
+          <div className="text-[16px] tracking-[-0.01em]">
+            {workout.capMinutes ?? 5} min guided flow
+          </div>
+          <p className="mt-1.5 text-[15px] leading-snug text-[color:var(--color-muted)]">
+            Each hold is timed and advances on its own. Start it and follow along
+            — nothing to tap between stretches.
+          </p>
         </Card>
       )}
 

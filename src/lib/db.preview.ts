@@ -26,6 +26,7 @@ import { NOTION_EXERCISES } from "./notionExercises";
 import { GYM_EXERCISES } from "./gymExercises";
 import { HOME_EXERCISES } from "./homeExercises";
 import { todayStr } from "./dates";
+import { cacheKey, cachedRead, invalidate } from "./dbCache";
 
 /* ------------------------------- Fixtures -------------------------------- */
 
@@ -303,25 +304,30 @@ const clone = <T,>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(
 const wait = <T,>(v: T): Promise<T> =>
   new Promise((r) => setTimeout(() => r(clone(v)), 120));
 
-export async function listExercises() {
-  return wait([...exercises].sort((a, b) => a.name.localeCompare(b.name)));
+export async function listExercises(uid: string) {
+  return cachedRead(cacheKey.exercises(uid), () =>
+    wait([...exercises].sort((a, b) => a.name.localeCompare(b.name)))
+  );
 }
 export async function createExercise(
-  _uid: string,
+  userId: string,
   data: Omit<Exercise, "id" | "createdAt" | "updatedAt">
 ) {
   const id = uid();
   exercises.push({ ...data, id, createdAt: Date.now() });
+  invalidate(cacheKey.exercises(userId));
   return wait(id);
 }
-export async function updateExercise(_uid: string, id: string, patch: Partial<Exercise>) {
+export async function updateExercise(userId: string, id: string, patch: Partial<Exercise>) {
   const i = exercises.findIndex((e) => e.id === id);
   if (i >= 0) exercises[i] = { ...exercises[i], ...patch, updatedAt: Date.now() };
+  invalidate(cacheKey.exercises(userId));
   return wait(undefined as void);
 }
-export async function deleteExercise(_uid: string, id: string) {
+export async function deleteExercise(userId: string, id: string) {
   const i = exercises.findIndex((e) => e.id === id);
   if (i >= 0) exercises.splice(i, 1);
+  invalidate(cacheKey.exercises(userId));
   return wait(undefined as void);
 }
 export async function uploadExerciseGif() {
@@ -348,26 +354,31 @@ export async function getWorkoutsByDate(_uid: string, date: string) {
     w.slot === "morning-pt" ? 0 : w.slot === "strength" ? 1 : 2;
   return wait(workouts.filter((w) => w.date === date).sort((a, b) => rank(a) - rank(b)));
 }
-export async function listWorkouts(_uid: string, opts: { limit?: number } = {}) {
-  const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date));
-  return wait(opts.limit ? sorted.slice(0, opts.limit) : sorted);
+export async function listWorkouts(uid: string, opts: { limit?: number } = {}) {
+  return cachedRead(cacheKey.workoutList(uid, opts.limit ?? 0), () => {
+    const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date));
+    return wait(opts.limit ? sorted.slice(0, opts.limit) : sorted);
+  });
 }
 export async function createWorkout(
-  _uid: string,
+  userId: string,
   data: Omit<Workout, "id" | "createdAt" | "updatedAt">
 ) {
   const id = uid();
   workouts.push({ ...data, id, createdAt: Date.now() });
+  invalidate(cacheKey.workouts(userId));
   return wait(id);
 }
-export async function saveWorkout(_uid: string, id: string, data: Partial<Workout>) {
+export async function saveWorkout(userId: string, id: string, data: Partial<Workout>) {
   const i = workouts.findIndex((w) => w.id === id);
   if (i >= 0) workouts[i] = { ...workouts[i], ...data, updatedAt: Date.now() };
+  invalidate(cacheKey.workouts(userId));
   return wait(undefined as void);
 }
-export async function deleteWorkout(_uid: string, id: string) {
+export async function deleteWorkout(userId: string, id: string) {
   const i = workouts.findIndex((w) => w.id === id);
   if (i >= 0) workouts.splice(i, 1);
+  invalidate(cacheKey.workouts(userId));
   return wait(undefined as void);
 }
 
@@ -460,32 +471,37 @@ export async function getAmrapHistory() {
   ] as AmrapResult[]);
 }
 
-export async function listTemplates() {
-  return wait([...templates].sort((a, b) => a.name.localeCompare(b.name)));
+export async function listTemplates(uid: string) {
+  return cachedRead(cacheKey.templates(uid), () =>
+    wait([...templates].sort((a, b) => a.name.localeCompare(b.name)))
+  );
 }
 export async function getTemplate(_uid: string, id: string) {
   return wait(templates.find((t) => t.id === id) ?? null);
 }
 export async function createTemplate(
-  _uid: string,
+  userId: string,
   data: Omit<WorkoutTemplate, "id" | "createdAt" | "updatedAt">
 ) {
   const id = uid();
   templates.push({ ...data, id, createdAt: Date.now() });
+  invalidate(cacheKey.templates(userId));
   return wait(id);
 }
-export async function saveTemplate(_uid: string, id: string, data: Partial<WorkoutTemplate>) {
+export async function saveTemplate(userId: string, id: string, data: Partial<WorkoutTemplate>) {
   const i = templates.findIndex((t) => t.id === id);
   if (i >= 0) templates[i] = { ...templates[i], ...data, updatedAt: Date.now() };
+  invalidate(cacheKey.templates(userId));
   return wait(undefined as void);
 }
-export async function deleteTemplate(_uid: string, id: string) {
+export async function deleteTemplate(userId: string, id: string) {
   const i = templates.findIndex((t) => t.id === id);
   if (i >= 0) templates.splice(i, 1);
+  invalidate(cacheKey.templates(userId));
   return wait(undefined as void);
 }
 export async function startWorkoutFromTemplate(
-  _uid: string,
+  userId: string,
   template: WorkoutTemplate,
   opts: { slot?: Workout["slot"]; date?: string } = {}
 ) {
@@ -506,11 +522,14 @@ export async function startWorkoutFromTemplate(
     capMinutes: template.capMinutes,
     createdAt: Date.now(),
   });
+  invalidate(cacheKey.workouts(userId));
   return wait(id);
 }
 
-export async function listWorkoutsInRange(_uid: string, start: string, end: string) {
-  return wait(workouts.filter((w) => w.date >= start && w.date <= end));
+export async function listWorkoutsInRange(uid: string, start: string, end: string) {
+  return cachedRead(cacheKey.workoutRange(uid, start, end), () =>
+    wait(workouts.filter((w) => w.date >= start && w.date <= end))
+  );
 }
 
 export function serverTimestamp() {

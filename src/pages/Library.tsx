@@ -21,7 +21,8 @@ import {
   Row,
   SectionHeader,
   Segmented,
-  ChipRail,
+  Sheet,
+  SheetHeader,
 } from "../components/ui";
 import { BODY_PARTS, type BodyPart } from "../lib/generateWorkout";
 import { templateLoad } from "../lib/recommend";
@@ -44,6 +45,26 @@ import type {
 type SlotPick = "morning-pt" | "strength";
 type TabKey = "pt" | "strength";
 type DurationKey = "any" | "short" | "medium" | "long";
+type KindKey = "any" | "benchmark" | "guided" | "standard";
+
+/**
+ * How a workout runs, phrased for someone who's never seen "AMRAP" before.
+ * The acronym is spelled out everywhere it appears in chrome; template names
+ * keep it because they're scored history anchors and renaming them would
+ * orphan past results.
+ */
+const KINDS: { key: KindKey; label: string; sub: string }[] = [
+  { key: "any", label: "All types", sub: "" },
+  { key: "benchmark", label: "Benchmarks", sub: "as many rounds as possible, against the clock" },
+  { key: "guided", label: "Guided flows", sub: "timed holds, paced for you" },
+  { key: "standard", label: "Standard", sub: "work through the sets" },
+];
+
+function formatOf(t: WorkoutTemplate): KindKey {
+  if (t.format === "amrap") return "benchmark";
+  if (t.format === "flow") return "guided";
+  return "standard";
+}
 
 /** Duration bands for the filter chips. Ranges are [min, max) in minutes. */
 const DURATIONS: { key: DurationKey; label: string; sub: string; min: number; max: number }[] = [
@@ -88,6 +109,8 @@ export default function Library() {
   const [query, setQuery] = useState("");
   const [duration, setDuration] = useState<DurationKey>("any");
   const [part, setPart] = useState<BodyPart | "any">("any");
+  const [kind, setKind] = useState<KindKey>("any");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Pick mode — when Today's empty slot deep-links here, we filter to the
   // matching category and treat a card-tap as "start workout for that slot".
@@ -172,9 +195,21 @@ export default function Library() {
         if (band && (mins < band.min || mins >= band.max)) return false;
       }
       if (part !== "any" && templateLoad(t)[part] === 0) return false;
+      if (kind !== "any" && formatOf(t) !== kind) return false;
       return true;
     });
-  }, [categoryTemplates, query, duration, part]);
+  }, [categoryTemplates, query, duration, part, kind]);
+
+  const kindCounts = useMemo(() => {
+    const counts: Record<KindKey, number> = {
+      any: categoryTemplates.length, benchmark: 0, guided: 0, standard: 0,
+    };
+    for (const t of categoryTemplates) counts[formatOf(t)] += 1;
+    return counts;
+  }, [categoryTemplates]);
+
+  const activeFilters =
+    (duration !== "any" ? 1 : 0) + (part !== "any" ? 1 : 0) + (kind !== "any" ? 1 : 0);
 
   // How many workouts in this tab train each body part — shown on the rail so
   // an empty filter is obvious before you tap it.
@@ -200,7 +235,7 @@ export default function Library() {
     return counts;
   }, [categoryTemplates]);
 
-  const filtering = query.trim().length > 0 || duration !== "any" || part !== "any";
+  const filtering = query.trim().length > 0 || activeFilters > 0;
 
   const grouped = useMemo(
     () => bucketTemplates(visibleTemplates, buckets),
@@ -482,18 +517,6 @@ export default function Library() {
         </Card>
       )}
 
-      {/* GENERATE — build a session around chosen body parts */}
-      {!pick && (
-        <Group>
-          <Row
-            to={planDate ? `/generate?date=${planDate}` : "/generate"}
-            title="Build your own"
-            subtitle="Pick body parts and length — we'll assemble it"
-            chevron
-          />
-        </Group>
-      )}
-
       {/* TABS — hidden only when a slot pick locks the category */}
       {!pick && (
         <SegmentedTabs
@@ -504,18 +527,51 @@ export default function Library() {
         />
       )}
 
-      {/* SEARCH + DURATION FILTERS */}
+      {/* SEARCH + FILTERS — one row. The individual filter rails used to live
+          here and pushed the first workout most of a screen down. */}
       {templates.length > 0 && (
-        <FilterBar
-          query={query}
-          duration={duration}
-          counts={durationCounts}
-          part={part}
-          partCounts={partCounts}
-          onQuery={setQuery}
-          onDuration={setDuration}
-          onPart={setPart}
-        />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <svg
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted-2)]"
+              width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search workouts"
+              aria-label="Search workouts"
+              className="h-10 w-full rounded-xl bg-[color:var(--color-surface-2)] pl-9 pr-9 text-[16px] outline-none transition-colors placeholder:text-[color:var(--color-muted-2)] focus:bg-[color:var(--color-surface-3)]"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full bg-[color:var(--color-muted-2)] text-black"
+              >
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setFiltersOpen(true)}
+            className={`h-10 shrink-0 rounded-xl px-3.5 text-[15px] font-medium transition-colors ${
+              activeFilters > 0
+                ? "bg-[color:var(--color-accent)] text-white"
+                : "bg-[color:var(--color-surface-2)] text-[color:var(--color-muted)]"
+            }`}
+          >
+            Filters{activeFilters > 0 ? ` · ${activeFilters}` : ""}
+          </button>
+        </div>
       )}
 
       {/* BODY */}
@@ -626,6 +682,17 @@ export default function Library() {
         </div>
       )}
 
+      {!pick && (
+        <Group>
+          <Row
+            to={planDate ? `/generate?date=${planDate}` : "/generate"}
+            title="Build your own"
+            subtitle="Pick body parts and length — we'll assemble it"
+            chevron
+          />
+        </Group>
+      )}
+
       {/* MANAGE — browse mode only, collapsed by default */}
       {!picking && templates.length > 0 && (
         <section className="pt-2">
@@ -688,6 +755,87 @@ export default function Library() {
             </div>
           )}
         </section>
+      )}
+
+      {filtersOpen && (
+        <Sheet onClose={() => setFiltersOpen(false)} label="Filter workouts">
+          <SheetHeader
+            title="Filters"
+            onCancel={() => setFiltersOpen(false)}
+            action={
+              activeFilters > 0 ? (
+                <button
+                  onClick={() => {
+                    setDuration("any");
+                    setPart("any");
+                    setKind("any");
+                  }}
+                  className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
+                >
+                  Reset
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="space-y-5 overflow-y-auto px-4 pb-8 pt-2">
+            <section>
+              <SectionHeader title="Type" />
+              <Group>
+                {KINDS.map((k) => (
+                  <Row
+                    key={k.key}
+                    title={k.label}
+                    subtitle={k.sub || undefined}
+                    value={k.key === "any" ? undefined : String(kindCounts[k.key])}
+                    onClick={() => setKind(k.key)}
+                    trailing={kind === k.key ? <Tick /> : undefined}
+                  />
+                ))}
+              </Group>
+            </section>
+
+            <section>
+              <SectionHeader title="Length" />
+              <Group>
+                {DURATIONS.map((d) => (
+                  <Row
+                    key={d.key}
+                    title={d.label}
+                    subtitle={d.sub || undefined}
+                    value={String(durationCounts[d.key])}
+                    onClick={() => setDuration(d.key)}
+                    trailing={duration === d.key ? <Tick /> : undefined}
+                  />
+                ))}
+              </Group>
+            </section>
+
+            <section>
+              <SectionHeader title="Body part" />
+              <Group>
+                <Row
+                  title="Any body part"
+                  onClick={() => setPart("any")}
+                  trailing={part === "any" ? <Tick /> : undefined}
+                />
+                {BODY_PARTS.map((b) => (
+                  <Row
+                    key={b.key}
+                    title={b.label}
+                    value={String(partCounts[b.key])}
+                    onClick={() => setPart(b.key)}
+                    trailing={part === b.key ? <Tick /> : undefined}
+                  />
+                ))}
+              </Group>
+            </section>
+
+            <Button size="lg" block onClick={() => setFiltersOpen(false)}>
+              Show {visibleTemplates.length} workout
+              {visibleTemplates.length === 1 ? "" : "s"}
+            </Button>
+          </div>
+        </Sheet>
       )}
 
       {editing && (
@@ -800,6 +948,19 @@ function bucketTemplates(
 // SEGMENTED TABS
 // ------------------------------------------------------------------
 
+function Tick() {
+  return (
+    <svg
+      className="shrink-0 text-[color:var(--color-accent)]"
+      width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 function SegmentedTabs({
   value,
   onChange,
@@ -826,103 +987,6 @@ function SegmentedTabs({
 // ------------------------------------------------------------------
 // FOCUS RAIL — horizontal scrolling row of FocusCards
 // ------------------------------------------------------------------
-
-/** Search box + duration filter chips. Chips show how many workouts fall in
- *  each band so an empty filter is obvious before you tap it. */
-function FilterBar({
-  query,
-  duration,
-  counts,
-  part,
-  partCounts,
-  onQuery,
-  onDuration,
-  onPart,
-}: {
-  query: string;
-  duration: DurationKey;
-  counts: Record<DurationKey, number>;
-  part: BodyPart | "any";
-  partCounts: Record<BodyPart, number>;
-  onQuery: (v: string) => void;
-  onDuration: (v: DurationKey) => void;
-  onPart: (v: BodyPart | "any") => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="relative">
-        <svg
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted-2)]"
-          width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-        >
-          <circle cx="11" cy="11" r="7" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          placeholder="Search workouts"
-          aria-label="Search workouts"
-          className="h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] pl-9 pr-9 text-[16px] outline-none transition-colors placeholder:text-[color:var(--color-muted-2)] focus:bg-[color:var(--color-surface-3)]"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => onQuery("")}
-            aria-label="Clear search"
-            className="absolute right-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full bg-[color:var(--color-muted-2)] text-black"
-          >
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        )}
-      </div>
-
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-        {DURATIONS.map((d) => {
-          const on = duration === d.key;
-          const count = counts[d.key];
-          const empty = count === 0 && d.key !== "any";
-          return (
-            <button
-              key={d.key}
-              type="button"
-              onClick={() => onDuration(d.key)}
-              disabled={empty}
-              className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ${
-                on
-                  ? "bg-[color:var(--color-accent)] text-white"
-                  : empty
-                  ? "bg-[color:var(--color-surface)] text-[color:var(--color-muted-2)] opacity-40"
-                  : "bg-[color:var(--color-surface-2)] text-[color:var(--color-muted)]"
-              }`}
-            >
-              {d.label}
-              {d.sub && <span className="ml-1 opacity-60">{d.sub}</span>}
-              <span className="ml-1.5 tnum opacity-60">{count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <ChipRail<BodyPart | "any">
-        value={part}
-        onChange={onPart}
-        options={[
-          { value: "any" as const, label: "Any body part" },
-          ...BODY_PARTS.map((b) => ({
-            value: b.key,
-            label: b.label,
-            count: partCounts[b.key],
-          })),
-        ]}
-      />
-    </div>
-  );
-}
 
 /** "2026-08-12" → "Wednesday" — used in the planner deep-link header. */
 function weekdayLabel(iso: string): string {

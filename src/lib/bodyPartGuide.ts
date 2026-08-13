@@ -20,6 +20,16 @@ export interface BodyPartGuide {
   how: string;
   /** Movement patterns that cover it. */
   patterns: string[];
+  /** At-a-glance prescription, shown as a stat row. */
+  training: { frequency: string; volume: string; reps: string };
+  /** How to tell it's actually working, and what to do when it stalls. */
+  progression: string;
+  /**
+   * Catalog names used to illustrate the page. Hand-picked rather than derived
+   * so the three demos are the canonical movements for the area, not whatever
+   * happened to sort first. Names must exist in the exercise catalog.
+   */
+  keyExercises: string[];
   /** Things people get wrong. */
   mistakes: string[];
   /** Shoulder-safety note. Omitted where the area carries no real risk. */
@@ -38,6 +48,10 @@ export const BODY_PART_GUIDE: Record<BodyPart, BodyPartGuide> = {
     how:
       "Two families cover it: presses (flat, incline, machine) and flyes or crossovers. Presses build most of the size because you can load them heavily; flyes add the stretched position that presses don't reach. Around 10–20 hard sets a week, 6–12 reps on presses and 10–15 on flyes. Incline work biases the upper chest, which is the part most people under-train.",
     patterns: ["Horizontal press", "Incline press", "Fly / crossover"],
+    training: { frequency: "2× a week", volume: "10–20 sets a week", reps: "6–12 press · 10–15 fly" },
+    progression:
+      "Add reps before you add weight: take a working set from 8 to 12 over a few sessions, then put the weight up and drop back to 8. If the bar speed on your first working set is slower than last week at the same load, you're under-recovered rather than under-trained — the fix is a lighter week, not more sets.",
+    keyExercises: ["Barbell Bench Press", "Incline Barbell Bench Press", "Cable Crossover"],
     mistakes: [
       "Flaring the elbows straight out to 90° — hard on the shoulder and no better for the chest",
       "Bouncing the bar off the ribs instead of controlling the descent",
@@ -60,6 +74,10 @@ export const BODY_PART_GUIDE: Record<BodyPart, BodyPartGuide> = {
     how:
       "Split it between vertical pulls (pulldowns, pull-ups) and horizontal pulls (rows). Back tolerates volume well: 12–20 sets a week is reasonable, 8–15 reps. Start each rep by moving the shoulder blade, then bend the elbow — if the elbow leads, your arms do the work.",
     patterns: ["Vertical pull", "Horizontal row", "Scapular retraction", "Deadlift / hinge"],
+    training: { frequency: "2–3× a week", volume: "12–20 sets a week", reps: "8–15" },
+    progression:
+      "Back size comes from volume more than intensity, so add sets before you add load. Track whether you can still pause a rep at the contracted position — when that disappears, the weight is running the set instead of you.",
+    keyExercises: ["Lat Pulldown", "Seated Cable Row", "Cable Face Pull"],
     mistakes: [
       "Letting the biceps take over — think about driving the elbow, not pulling with the hand",
       "No scapular movement at all, so the traps and rhomboids never get trained",
@@ -82,6 +100,10 @@ export const BODY_PART_GUIDE: Record<BodyPart, BodyPartGuide> = {
     how:
       "Lateral raises for width, rear-delt work for balance and shoulder health, pressing for overall mass. 10–20 sets a week, mostly 10–20 reps — the delts respond better to volume than to heavy singles. Rotator cuff work is a separate category: light, high-rep, done as preparation rather than as training.",
     patterns: ["Overhead press", "Lateral raise", "Rear-delt fly", "External rotation"],
+    training: { frequency: "2–3× a week", volume: "10–20 sets a week", reps: "10–20 raises · 6–10 press" },
+    progression:
+      "Side and rear delts respond to frequency and reps, not heavy singles — an extra light session mid-week beats one brutal one. Progress raises by adding reps up to about 20, then move up the smallest increment you have.",
+    keyExercises: ["Dumbbell Lateral Raise", "Barbell Overhead Press", "Cable Face Pull"],
     mistakes: [
       "Pressing behind the neck — no upside, and the worst position the joint can be in",
       "Shrugging the traps up during lateral raises instead of leading with the elbow",
@@ -104,6 +126,10 @@ export const BODY_PART_GUIDE: Record<BodyPart, BodyPartGuide> = {
     how:
       "8–15 reps, 8–15 sets a week each. They already get substantial indirect work from your pressing and pulling, so they need less direct volume than people assume. The long head of the triceps crosses the shoulder, so overhead extensions train it in a stretched position that pushdowns miss — same logic as incline work for the chest.",
     patterns: ["Elbow flexion (curl)", "Elbow extension (pushdown)", "Overhead extension"],
+    training: { frequency: "2× a week", volume: "8–15 sets each a week", reps: "8–15" },
+    progression:
+      "Arms get a lot of indirect work, so direct volume climbs slowly. If curls stop moving, the usual cause is that your back day is already taking the biceps to failure — reorder the week before adding sets.",
+    keyExercises: ["Dumbbell Hammer Curl", "Band Tricep Pushdown", "Close-Grip Bench Press"],
     mistakes: [
       "Swinging the weight up with the lower back instead of the elbow",
       "Letting the elbow drift forward on curls, which turns it into a front raise",
@@ -124,6 +150,10 @@ export const BODY_PART_GUIDE: Record<BodyPart, BodyPartGuide> = {
     how:
       "Cover both patterns every week, plus something single-legged for balance between sides. 10–20 sets a week per pattern. Quads take heavier loading and lower reps well; hamstrings respond to both heavy hinges and higher-rep curls. Calves need more reps and more frequency than feels reasonable — the soleus in particular only gets trained with a bent knee.",
     patterns: ["Squat", "Hinge / RDL", "Lunge / split squat", "Knee flexion", "Calf raise"],
+    training: { frequency: "2× a week", volume: "10–20 sets per pattern", reps: "5–10 squat · 8–12 hinge · 12–20 calves" },
+    progression:
+      "Squat and hinge progress on load; single-leg and calf work progress on reps. Depth is a prerequisite, not a variable — if adding weight costs you depth, the set didn't count.",
+    keyExercises: ["Barbell Back Squat", "Barbell Romanian Deadlift", "Leg Press"],
     mistakes: [
       "Cutting depth — a quarter squat trains a quarter of the muscle",
       "Letting the knees collapse inward, usually a glute-medius weakness rather than a knee problem",
@@ -143,6 +173,10 @@ export const BODY_PART_GUIDE: Record<BodyPart, BodyPartGuide> = {
     how:
       "Hinges and hip thrusts for the max, abduction work for the medius. 10–16 sets a week. Thrust variations train it in a shortened position and RDLs in a stretched one, so doing both covers more than either alone. Abduction work is the piece most people skip and the piece that quietly fixes knee pain.",
     patterns: ["Hip thrust / bridge", "Hinge / RDL", "Abduction", "Single-leg work"],
+    training: { frequency: "2–3× a week", volume: "10–16 sets a week", reps: "8–12 thrust · 15–25 abduction" },
+    progression:
+      "Thrusts take load well and can climb fast. Abduction work should stay light and high-rep — you're after the burn, not a number. A good sign it's working: single-leg work stops feeling wobbly.",
+    keyExercises: ["Kettlebell Hip Thrust", "Barbell Romanian Deadlift", "Hip Abduction Machine"],
     mistakes: [
       "Arching the lower back at the top of a thrust instead of finishing with the hip",
       "Turning every thrust into a quad exercise by setting the feet too close",
@@ -163,6 +197,10 @@ export const BODY_PART_GUIDE: Record<BodyPart, BodyPartGuide> = {
     how:
       "Work the three anti-patterns: anti-extension (dead bug, ab rollout, plank), anti-rotation (Pallof press), and anti-lateral-flexion (suitcase carry, side plank). Add loaded carries. 8–15 sets a week, and unlike most muscles it responds well to being trained near-daily at low intensity. Breathe throughout — bracing is not the same thing as holding your breath.",
     patterns: ["Anti-extension", "Anti-rotation", "Anti-lateral flexion", "Loaded carry", "Flexion"],
+    training: { frequency: "3–5× a week", volume: "8–15 sets a week", reps: "20–60s holds · 8–15 reps" },
+    progression:
+      "Progress by making the lever longer or the load heavier, not by adding time indefinitely — a five-minute plank trains patience. When a dead bug gets easy, straighten the legs before you add reps.",
+    keyExercises: ["Dead Bug", "Forearm Plank", "Band Pallof Press"],
     mistakes: [
       "Hundreds of crunches and nothing else",
       "Letting the lower back arch off the floor during dead bugs, which removes the whole point",

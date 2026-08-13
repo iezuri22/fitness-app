@@ -50,6 +50,16 @@ function BodyIndex() {
   );
 }
 
+/** One number from the training prescription. Wraps, unlike Stat. */
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[13px] text-[color:var(--color-muted)]">{label}</div>
+      <div className="mt-0.5 text-[15px] leading-tight tracking-[-0.01em]">{value}</div>
+    </div>
+  );
+}
+
 function BodyPartDetail({ part }: { part: BodyPart }) {
   const { user } = useAuth();
   const [items, setItems] = useState<Exercise[] | null>(null);
@@ -101,6 +111,42 @@ function BodyPartDetail({ part }: { part: BodyPart }) {
         </Card>
       )}
 
+      {/* Illustrated first. Reading about the lateral deltoid is far less
+          useful than seeing the three movements that train it. */}
+      <section>
+        <div className="grid grid-cols-3 gap-2">
+          {guide.keyExercises.map((name) => {
+            const match = (items ?? []).find(
+              (e) => e.name.toLowerCase() === name.toLowerCase()
+            );
+            return (
+              <Link
+                key={name}
+                to={match ? `/exercises/${match.id}` : "/exercises"}
+                className="min-w-0 active:opacity-70"
+              >
+                <div className="overflow-hidden rounded-[10px]">
+                  <ExerciseGif name={name} gifUrl={match?.gifUrl} size="card" />
+                </div>
+                <div className="mt-1.5 text-[12px] leading-tight text-[color:var(--color-muted)]">
+                  {name}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <section>
+        <Card>
+          <div className="grid grid-cols-3 gap-3">
+            <Fact label="Frequency" value={guide.training.frequency} />
+            <Fact label="Volume" value={guide.training.volume} />
+            <Fact label="Reps" value={guide.training.reps} />
+          </div>
+        </Card>
+      </section>
+
       <section>
         <SectionHeader title="What it does" />
         <Card>
@@ -121,6 +167,13 @@ function BodyPartDetail({ part }: { part: BodyPart }) {
         <SectionHeader title="How to train it" />
         <Card>
           <p className="text-[15px] leading-snug">{guide.how}</p>
+        </Card>
+      </section>
+
+      <section>
+        <SectionHeader title="Making progress" />
+        <Card>
+          <p className="text-[15px] leading-snug">{guide.progression}</p>
         </Card>
       </section>
 

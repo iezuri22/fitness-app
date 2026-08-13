@@ -21,6 +21,7 @@ import {
 } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "./firebase";
+import { cacheKey, cachedRead, invalidate } from "./dbCache";
 import type { Exercise, PlannedSet, Workout, WorkoutTemplate } from "./types";
 import { todayStr } from "./dates";
 import { NOTION_EXERCISES } from "./notionExercises";
@@ -38,10 +39,12 @@ const templatesPath = (uid: string) => `${userRoot(uid)}/templates`;
 // ---------- Exercises ----------
 
 export async function listExercises(uid: string): Promise<Exercise[]> {
-  const snap = await getDocs(
-    query(collection(db, exercisesPath(uid)), orderBy("name"))
-  );
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Exercise, "id">) }));
+  return cachedRead(cacheKey.exercises(uid), async () => {
+    const snap = await getDocs(
+      query(collection(db, exercisesPath(uid)), orderBy("name"))
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Exercise, "id">) }));
+  });
 }
 
 export async function createExercise(
@@ -53,6 +56,7 @@ export async function createExercise(
     createdAt: Date.now(),
     updatedAt: Date.now(),
   });
+  invalidate(cacheKey.exercises(uid));
   return ref.id;
 }
 
@@ -65,10 +69,12 @@ export async function updateExercise(
     ...patch,
     updatedAt: Date.now(),
   });
+  invalidate(cacheKey.exercises(uid));
 }
 
 export async function deleteExercise(uid: string, id: string): Promise<void> {
   await deleteDoc(doc(db, exercisesPath(uid), id));
+  invalidate(cacheKey.exercises(uid));
 }
 
 /**
@@ -244,13 +250,18 @@ export async function listWorkouts(
   uid: string,
   opts: { limit?: number; extraConstraints?: QueryConstraint[] } = {}
 ): Promise<Workout[]> {
-  const constraints: QueryConstraint[] = [
-    orderBy("date", "desc"),
-    ...(opts.extraConstraints ?? []),
-  ];
-  if (opts.limit) constraints.push(limit(opts.limit));
-  const snap = await getDocs(query(collection(db, workoutsPath(uid)), ...constraints));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Workout, "id">) }));
+  const run = async () => {
+    const constraints: QueryConstraint[] = [
+      orderBy("date", "desc"),
+      ...(opts.extraConstraints ?? []),
+    ];
+    if (opts.limit) constraints.push(limit(opts.limit));
+    const snap = await getDocs(query(collection(db, workoutsPath(uid)), ...constraints));
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Workout, "id">) }));
+  };
+  // Custom constraints can't be represented in a cache key, so they bypass it.
+  if (opts.extraConstraints?.length) return run();
+  return cachedRead(cacheKey.workoutList(uid, opts.limit ?? 0), run);
 }
 
 export async function createWorkout(
@@ -262,6 +273,7 @@ export async function createWorkout(
     createdAt: Date.now(),
     updatedAt: Date.now(),
   });
+  invalidate(cacheKey.workouts(uid));
   return ref.id;
 }
 
@@ -275,10 +287,12 @@ export async function saveWorkout(
     { ...data, updatedAt: Date.now() },
     { merge: true }
   );
+  invalidate(cacheKey.workouts(uid));
 }
 
 export async function deleteWorkout(uid: string, id: string): Promise<void> {
   await deleteDoc(doc(db, workoutsPath(uid), id));
+  invalidate(cacheKey.workouts(uid));
 }
 
 // ---------- Exercise history (cross-workout) ----------
@@ -472,12 +486,14 @@ export async function getAmrapHistory(
 // ---------- Workout Templates ----------
 
 export async function listTemplates(uid: string): Promise<WorkoutTemplate[]> {
-  const snap = await getDocs(
-    query(collection(db, templatesPath(uid)), orderBy("name"))
-  );
-  return snap.docs.map(
-    (d) => ({ id: d.id, ...(d.data() as Omit<WorkoutTemplate, "id">) })
-  );
+  return cachedRead(cacheKey.templates(uid), async () => {
+    const snap = await getDocs(
+      query(collection(db, templatesPath(uid)), orderBy("name"))
+    );
+    return snap.docs.map(
+      (d) => ({ id: d.id, ...(d.data() as Omit<WorkoutTemplate, "id">) })
+    );
+  });
 }
 
 export async function getTemplate(
@@ -498,6 +514,7 @@ export async function createTemplate(
     createdAt: Date.now(),
     updatedAt: Date.now(),
   });
+  invalidate(cacheKey.templates(uid));
   return ref.id;
 }
 
@@ -511,10 +528,12 @@ export async function saveTemplate(
     { ...patch, updatedAt: Date.now() },
     { merge: true }
   );
+  invalidate(cacheKey.templates(uid));
 }
 
 export async function deleteTemplate(uid: string, id: string): Promise<void> {
   await deleteDoc(doc(db, templatesPath(uid), id));
+  invalidate(cacheKey.templates(uid));
 }
 
 /**
@@ -574,16 +593,18 @@ export async function listWorkoutsInRange(
   start: string,
   end: string
 ): Promise<Workout[]> {
-  const snap = await getDocs(
-    query(
-      collection(db, workoutsPath(uid)),
-      where("date", ">=", start),
-      where("date", "<=", end)
-    )
-  );
-  return snap.docs.map(
-    (d) => ({ id: d.id, ...(d.data() as Omit<Workout, "id">) })
-  );
+  return cachedRead(cacheKey.workoutRange(uid, start, end), async () => {
+    const snap = await getDocs(
+      query(
+        collection(db, workoutsPath(uid)),
+        where("date", ">=", start),
+        where("date", "<=", end)
+      )
+    );
+    return snap.docs.map(
+      (d) => ({ id: d.id, ...(d.data() as Omit<Workout, "id">) })
+    );
+  });
 }
 
 // Re-export for convenience

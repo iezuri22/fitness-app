@@ -115,7 +115,7 @@ export default function AmrapRunner({
             {workout.title}
           </div>
           <div className="text-[12px] text-[color:var(--color-muted)]">
-            {workout.capMinutes ?? 20} min AMRAP
+            {workout.capMinutes ?? 20} min · as many rounds as possible
           </div>
         </div>
         <div className="size-9 shrink-0" />
@@ -156,6 +156,19 @@ export default function AmrapRunner({
             />
           </div>
         </div>
+
+        {startedAt === null && (
+          <div className="rounded-[14px] bg-[color:var(--color-surface)] p-4">
+            <div className="text-[16px] tracking-[-0.01em]">How this works</div>
+            <p className="mt-1.5 text-[15px] leading-snug text-[color:var(--color-muted)]">
+              Work through the round below, then start it again. Keep going until
+              the {workout.capMinutes ?? 20}-minute clock runs out and tap
+              <span className="text-white"> +1 round</span> each time you finish
+              one. Your score is rounds completed — the same round every time, so
+              you can compare it against your past attempts.
+            </p>
+          </div>
+        )}
 
         {/* Score */}
         <div className="rounded-[14px] bg-[color:var(--color-surface)] p-5 text-center">

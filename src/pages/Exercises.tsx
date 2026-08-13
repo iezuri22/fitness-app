@@ -26,6 +26,9 @@ import ExerciseGif from "../components/ExerciseGif";
 import { findGifForName } from "../lib/exerciseGifs";
 import type { Exercise, ExerciseCategory } from "../lib/types";
 
+/** Rows rendered per page. Big enough to fill a scroll, small enough to mount fast. */
+const PAGE = 40;
+
 const CATEGORIES: ExerciseCategory[] = [
   "PT/Rehab",
   "Upper Body",
@@ -43,6 +46,10 @@ export default function Exercises() {
   const [cat, setCat] = useState<ExerciseCategory | "All">("All");
   const [part, setPart] = useState<BodyPart | "All">("All");
   const [onlyMissingGif, setOnlyMissingGif] = useState(false);
+  // The library runs to several hundred entries; mounting every row (each with
+  // its own demo image) is what made this tab slow to open. Render a page at a
+  // time instead.
+  const [visible, setVisible] = useState(PAGE);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -69,6 +76,11 @@ export default function Exercises() {
       return true;
     });
   }, [items, q, cat, part, onlyMissingGif]);
+
+  // Any change to the filters means the old offset is meaningless.
+  useEffect(() => {
+    setVisible(PAGE);
+  }, [q, cat, part, onlyMissingGif]);
 
   // Counts respect the category filter but not the body-part one, so the rail
   // shows what each option would give you rather than what's selected now.
@@ -210,7 +222,7 @@ export default function Exercises() {
         />
       ) : (
         <Group>
-          {filtered.map((e) => (
+          {filtered.slice(0, visible).map((e) => (
             <Row
               key={e.id}
               to={`/exercises/${e.id}`}
@@ -232,6 +244,20 @@ export default function Exercises() {
             />
           ))}
         </Group>
+      )}
+
+      {filtered.length > visible && (
+        <Button
+          variant="secondary"
+          block
+          onClick={() => setVisible((v) => v + PAGE)}
+          className="!mt-3"
+        >
+          Show {Math.min(PAGE, filtered.length - visible)} more
+          <span className="text-[color:var(--color-muted)]">
+            ({visible} of {filtered.length})
+          </span>
+        </Button>
       )}
 
       {creating && (
