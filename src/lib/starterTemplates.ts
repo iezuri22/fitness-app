@@ -34,6 +34,19 @@ type SeedTemplate = {
   focus: string;
   category: TemplateCategory;
   notes?: string;               // shown on the workout — rep ranges, cues, etc.
+  /**
+   * Explicit duration in minutes. REQUIRED on any template whose name carries
+   * a number, and it must equal that number — run `npm run check:durations` to
+   * verify (it is not part of the build). Without it the card falls back to the
+   * per-set model,
+   * which runs low on strength work (it doesn't know about walking to a
+   * machine or changing plates) and low on static holds (a 60-second stretch
+   * is modelled as 33 seconds), so "Home · Full Body 30" was showing 24 min.
+   *
+   * Omit it on templates that don't promise a length — those should float
+   * with whatever's actually in the set list.
+   */
+  minutes?: number;
   /** "amrap" → `sets` describes ONE round, scored by rounds completed. */
   format?: WorkoutFormat;
   capMinutes?: number;          // AMRAP time cap
@@ -118,6 +131,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   // slow cycles) rather than an end-range stretch.
   {
     name: "AM · Wake Up 5",
+    minutes: 5,
     focus: "Morning · 5 min",
     category: "PT Only",
     notes:
@@ -131,6 +145,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "AM · Spine + Shoulder 8",
+    minutes: 8,
     focus: "Morning · 8 min",
     category: "PT Only",
     notes:
@@ -146,6 +161,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "AM · Hips + Posture 10",
+    minutes: 10,
     focus: "Morning · 10 min",
     category: "PT Only",
     notes:
@@ -181,6 +197,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   // Flexion is fine here: the discs have been loaded all day.
   {
     name: "PM · Wind Down 6",
+    minutes: 6,
     focus: "Evening · 6 min",
     category: "PT Only",
     notes:
@@ -193,6 +210,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "PM · Full Wind Down 10",
+    minutes: 10,
     focus: "Evening · 10 min",
     category: "PT Only",
     notes:
@@ -237,6 +255,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   // ---------- SHOULDER REHAB (non-negotiable daily work) ----------
   {
     name: "PT · Quick 6",
+    minutes: 6,
     focus: "Minimum Viable Rehab",
     category: "PT Only",
     notes: "The one you do when you don't want to. Six minutes, no excuses.",
@@ -467,6 +486,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "Gym · Full Body — Density 45",
+    minutes: 45,
     focus: "Full Body · Gym",
     category: "Full",
     notes:
@@ -569,6 +589,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "Home · Full Body — Density 30",
+    minutes: 30,
     focus: "Full Body · Home",
     category: "Full",
     notes:
@@ -605,6 +626,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   // ---------- Home strength — short options for non-gym days ----------
   {
     name: "Home · Quick Upper 20",
+    minutes: 20,
     focus: "Upper Body · Home",
     category: "Full",
     notes: "Dumbbells and bands only. In and out in twenty.",
@@ -618,6 +640,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "Home · Quick Lower 20",
+    minutes: 20,
     focus: "Lower Body · Home",
     category: "Full",
     notes: "No barbell needed. Slow eccentrics, full depth.",
@@ -631,6 +654,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "Home · Core 15",
+    minutes: 15,
     focus: "Core · Home",
     category: "Full",
     sets: [
@@ -643,6 +667,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "Home · Full Body 30",
+    minutes: 30,
     focus: "Full Body · Home",
     category: "Full",
     sets: [
@@ -656,6 +681,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "Home · Kettlebell 25",
+    minutes: 25,
     focus: "Full Body · Home",
     category: "Full",
     sets: [
@@ -670,6 +696,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   // ---------- Gym — short options ----------
   {
     name: "Gym · Express Upper 25",
+    minutes: 25,
     focus: "Upper Body · Gym",
     category: "Full",
     notes: "Tight on time. Three big lifts, warm the cuff, go.",
@@ -683,6 +710,7 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
   },
   {
     name: "Gym · Express Lower 25",
+    minutes: 25,
     focus: "Lower Body · Gym",
     category: "Full",
     sets: [
@@ -1043,6 +1071,7 @@ export function resolveStarterTemplates(
   notes?: string;
   format?: WorkoutFormat;
   capMinutes?: number;
+  estimatedMinutes?: number;
   plannedSets: PlannedSet[];
   missing: string[];
 }> {
@@ -1099,10 +1128,27 @@ export function resolveStarterTemplates(
       notes: t.notes,
       format: t.format,
       capMinutes: t.capMinutes,
+      estimatedMinutes: t.minutes,
       plannedSets,
       missing,
     };
   });
+}
+
+/**
+ * Minutes a template's NAME promises, or null if it doesn't promise any.
+ * Matches a trailing count ("Home · Kettlebell 25") or an inline one
+ * ("Stretch · 10 min Desk Reset").
+ *
+ * Shared by the duration check and the one-off Firestore migration so the two
+ * can't disagree about what counts as a promise.
+ */
+export function minutesClaimedByName(name: string): number | null {
+  const trailing = name.match(/\s(\d{1,3})$/);
+  if (trailing) return Number(trailing[1]);
+  const inline = name.match(/\b(\d{1,3})\s*min\b/i);
+  if (inline) return Number(inline[1]);
+  return null;
 }
 
 function normalize(s: string): string {

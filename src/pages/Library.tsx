@@ -10,6 +10,7 @@ import {
   listTemplates,
   saveTemplate,
   startWorkoutFromTemplate,
+  type TemplatePatch,
 } from "../lib/db";
 import {
   Button,
@@ -32,6 +33,7 @@ import {
 } from "../lib/generateWorkout";
 import { templateLoad } from "../lib/recommend";
 import ManagePlanSheet from "../components/ManagePlanSheet";
+import TemplateDetailsSheet from "../components/TemplateDetailsSheet";
 import {
   countMissingStarterTemplates,
   findRetiredTemplates,
@@ -142,6 +144,7 @@ export default function Library() {
   const [showArchived, setShowArchived] = useState(false);
   const [showManage, setShowManage] = useState(false);
   const [editing, setEditing] = useState<WorkoutTemplate | null>(null);
+  const [editingDetails, setEditingDetails] = useState<WorkoutTemplate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
@@ -350,11 +353,19 @@ export default function Library() {
     await deleteTemplate(user.uid, t.id);
   }
 
-  async function handleRename(t: WorkoutTemplate) {
-    const next = prompt("Rename template", t.name);
-    if (!user || !templates || !next || next === t.name) return;
-    setTemplates(templates.map((x) => (x.id === t.id ? { ...x, name: next } : x)));
-    await saveTemplate(user.uid, t.id, { name: next });
+  /** Save a name / duration edit from TemplateDetailsSheet. A `null` in the
+   *  patch means "remove this field" — see TemplatePatch in lib/db. */
+  async function handleDetailsSave(t: WorkoutTemplate, patch: TemplatePatch) {
+    if (!user || !templates) return;
+    setTemplates(
+      templates.map((x) => {
+        if (x.id !== t.id) return x;
+        const next = { ...x, ...patch } as Record<string, unknown>;
+        for (const [k, v] of Object.entries(patch)) if (v === null) delete next[k];
+        return next as unknown as WorkoutTemplate;
+      })
+    );
+    await saveTemplate(user.uid, t.id, patch);
   }
 
   async function handleCategoryToggle(t: WorkoutTemplate) {
@@ -380,6 +391,14 @@ export default function Library() {
       })),
       poolWeek: undefined,
       notes: t.notes,
+      // Everything that defines HOW the routine runs has to come along. Without
+      // `format`/`capMinutes` a duplicated AMRAP loses its clock and its score
+      // screen and runs as a plain set list; without `estimatedMinutes` the copy
+      // falls back to the per-set model and reads a different length than the
+      // routine it was copied from.
+      format: t.format,
+      capMinutes: t.capMinutes,
+      estimatedMinutes: t.estimatedMinutes,
     };
     const id = await createTemplate(user.uid, copy);
     setTemplates([{ id, ...copy }, ...templates]);
@@ -442,6 +461,7 @@ export default function Library() {
           notes: t.notes,
           format: t.format,
           capMinutes: t.capMinutes,
+          estimatedMinutes: t.estimatedMinutes,
         };
         const id = await createTemplate(user.uid, doc);
         created.push({ id, ...doc });
@@ -814,7 +834,7 @@ export default function Library() {
                     onEdit={() => setEditing(t)}
                     onToggleArchive={() => void toggleArchive(t)}
                     onDelete={() => void handleDelete(t)}
-                    onRename={() => void handleRename(t)}
+                    onEditDetails={() => setEditingDetails(t)}
                     onToggleCategory={() => void handleCategoryToggle(t)}
                     onDuplicate={() => void handleDuplicate(t)}
                   />
@@ -956,6 +976,14 @@ export default function Library() {
           gifByExerciseId={gifByExerciseId}
           onChange={handleTemplateSetsChanged}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editingDetails && (
+        <TemplateDetailsSheet
+          template={editingDetails}
+          onSave={(patch) => handleDetailsSave(editingDetails, patch)}
+          onClose={() => setEditingDetails(null)}
         />
       )}
     </div>
@@ -1217,7 +1245,7 @@ function TemplateRow({
   onEdit,
   onToggleArchive,
   onDelete,
-  onRename,
+  onEditDetails,
   onToggleCategory,
   onDuplicate,
 }: {
@@ -1227,7 +1255,7 @@ function TemplateRow({
   onEdit: () => void;
   onToggleArchive: () => void;
   onDelete: () => void;
-  onRename: () => void;
+  onEditDetails: () => void;
   onToggleCategory: () => void;
   onDuplicate: () => void;
 }) {
@@ -1275,10 +1303,10 @@ function TemplateRow({
             <MenuItem
               onClick={() => {
                 setMenuOpen(false);
-                onRename();
+                onEditDetails();
               }}
             >
-              Rename…
+              Name &amp; duration…
             </MenuItem>
             <MenuItem
               onClick={() => {

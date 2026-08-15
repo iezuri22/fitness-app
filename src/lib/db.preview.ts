@@ -194,6 +194,7 @@ const templates: WorkoutTemplate[] = [
       notes: t.notes,
       format: t.format,
       capMinutes: t.capMinutes,
+      estimatedMinutes: t.estimatedMinutes,
       plannedSets: t.plannedSets,
     })),
 ];
@@ -502,9 +503,18 @@ export async function createTemplate(
   invalidate(cacheKey.templates(userId));
   return wait(id);
 }
-export async function saveTemplate(userId: string, id: string, data: Partial<WorkoutTemplate>) {
+export async function saveTemplate(
+  userId: string,
+  id: string,
+  data: Partial<WorkoutTemplate> & { estimatedMinutes?: number | null; capMinutes?: number | null }
+) {
   const i = templates.findIndex((t) => t.id === id);
-  if (i >= 0) templates[i] = { ...templates[i], ...data, updatedAt: Date.now() };
+  if (i >= 0) {
+    const next = { ...templates[i], ...data, updatedAt: Date.now() } as Record<string, unknown>;
+    // Match the real db: `null` removes the field rather than storing a null.
+    for (const [k, v] of Object.entries(data)) if (v === null) delete next[k];
+    templates[i] = next as unknown as WorkoutTemplate;
+  }
   invalidate(cacheKey.templates(userId));
   return wait(undefined as void);
 }
@@ -534,6 +544,7 @@ export async function startWorkoutFromTemplate(
     fromTemplateId: template.id,
     format: template.format,
     capMinutes: template.capMinutes,
+    estimatedMinutes: template.estimatedMinutes,
     createdAt: Date.now(),
   });
   invalidate(cacheKey.workouts(userId));

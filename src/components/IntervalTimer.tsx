@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Overlay } from "./ui";
 import type { PlannedSet } from "../lib/types";
 
 /**
@@ -122,121 +123,123 @@ export default function IntervalTimer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button
-        aria-label="Dismiss interval timer"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade"
-      />
+    <Overlay>
+      <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <button
+          aria-label="Dismiss interval timer"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade"
+        />
 
-      <div
-        className="animate-slide-up relative w-full max-w-xl rounded-t-[16px] bg-[color:var(--color-surface)] px-6 pb-8 pt-2"
-        style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-      >
-        <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
+        <div
+          className="animate-slide-up relative w-full max-w-xl rounded-t-[16px] bg-[color:var(--color-surface)] px-6 pb-8 pt-2"
+          style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
+        >
+          <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
 
-        <div className="flex items-center justify-between mb-5">
-          <div className="text-[16px] font-semibold tracking-[-0.01em]">
-            {phase === "done"
-              ? "All sets complete"
-              : phase === "rest"
-                ? "Rest"
-                : `Set ${cursor + 1} of ${remainingRef.current.length}`}
-          </div>
-          <button
-            onClick={onClose}
-            className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
-          >
-            Close
-          </button>
-        </div>
-
-        {phase !== "done" && currentSet && (
-          <div className="text-center mb-3">
-            <div
-              className={`text-[17px] font-semibold tracking-[-0.01em] ${
-                phase === "rest" ? "text-[color:var(--color-muted)]" : ""
-              }`}
-            >
-              {phase === "rest"
-                ? `Up next: ${remainingRef.current[cursor + 1]?.exerciseName ?? ""}`
-                : currentSet.exerciseName}
+          <div className="flex items-center justify-between mb-5">
+            <div className="text-[16px] font-semibold tracking-[-0.01em]">
+              {phase === "done"
+                ? "All sets complete"
+                : phase === "rest"
+                  ? "Rest"
+                  : `Set ${cursor + 1} of ${remainingRef.current.length}`}
             </div>
-            {phase === "work" && (
-              <div className="mt-0.5 text-[13px] text-[color:var(--color-muted)]">
-                Target: {currentSet.targetReps} reps
-                {currentSet.targetWeight ? ` @ ${currentSet.targetWeight}lb` : ""}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="relative mx-auto" style={{ width: SIZE, height: SIZE }}>
-          <svg width={SIZE} height={SIZE} className="-rotate-90" aria-hidden="true">
-            <circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={R}
-              stroke="rgba(255,255,255,0.07)"
-              strokeWidth={STROKE}
-              fill="none"
-            />
-            <circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={R}
-              stroke={
-                phase === "rest"
-                  ? "var(--color-warn, #f5a623)"
-                  : "var(--color-accent)"
-              }
-              strokeWidth={STROKE}
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={CIRC}
-              strokeDashoffset={dashoffset}
-              style={{ transition: "stroke-dashoffset 0.1s linear" }}
-            />
-          </svg>
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="text-center">
-              <div className="text-[52px] font-semibold tnum leading-none tracking-[-0.02em]">
-                {m}:{String(s).padStart(2, "0")}
-              </div>
-              <div className="mt-1.5 text-[13px] text-[color:var(--color-muted)]">
-                {phase === "done" ? "finished" : phase}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {phase !== "done" ? (
-          <div className="mt-7 flex items-center justify-center gap-3">
-            <AdjustButton onClick={stepBack}>← Back</AdjustButton>
-            <AdjustButton onClick={() => setPaused((p) => !p)}>
-              {paused ? "Resume" : "Pause"}
-            </AdjustButton>
-            <AdjustButton onClick={skip}>Skip →</AdjustButton>
-          </div>
-        ) : (
-          <div className="mt-7 flex items-center justify-center">
             <button
               onClick={onClose}
-              className="rounded-xl bg-[color:var(--color-accent)] px-6 py-3 text-[16px] font-semibold text-white active:bg-[color:var(--color-accent-pressed)]"
+              className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
             >
-              Done
+              Close
             </button>
           </div>
-        )}
-      </div>
 
-      <style>{`
-        @keyframes _it_fade { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes _it_slide { from { transform: translateY(100%) } to { transform: translateY(0) } }
-        .animate-fade { animation: _it_fade 200ms ease-out forwards; }
-        .animate-slide-up { animation: _it_slide 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards; }
-      `}</style>
-    </div>
+          {phase !== "done" && currentSet && (
+            <div className="text-center mb-3">
+              <div
+                className={`text-[17px] font-semibold tracking-[-0.01em] ${
+                  phase === "rest" ? "text-[color:var(--color-muted)]" : ""
+                }`}
+              >
+                {phase === "rest"
+                  ? `Up next: ${remainingRef.current[cursor + 1]?.exerciseName ?? ""}`
+                  : currentSet.exerciseName}
+              </div>
+              {phase === "work" && (
+                <div className="mt-0.5 text-[13px] text-[color:var(--color-muted)]">
+                  Target: {currentSet.targetReps} reps
+                  {currentSet.targetWeight ? ` @ ${currentSet.targetWeight}lb` : ""}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="relative mx-auto" style={{ width: SIZE, height: SIZE }}>
+            <svg width={SIZE} height={SIZE} className="-rotate-90" aria-hidden="true">
+              <circle
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={R}
+                stroke="rgba(255,255,255,0.07)"
+                strokeWidth={STROKE}
+                fill="none"
+              />
+              <circle
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={R}
+                stroke={
+                  phase === "rest"
+                    ? "var(--color-warn, #f5a623)"
+                    : "var(--color-accent)"
+                }
+                strokeWidth={STROKE}
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={CIRC}
+                strokeDashoffset={dashoffset}
+                style={{ transition: "stroke-dashoffset 0.1s linear" }}
+              />
+            </svg>
+            <div className="absolute inset-0 grid place-items-center">
+              <div className="text-center">
+                <div className="text-[52px] font-semibold tnum leading-none tracking-[-0.02em]">
+                  {m}:{String(s).padStart(2, "0")}
+                </div>
+                <div className="mt-1.5 text-[13px] text-[color:var(--color-muted)]">
+                  {phase === "done" ? "finished" : phase}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {phase !== "done" ? (
+            <div className="mt-7 flex items-center justify-center gap-3">
+              <AdjustButton onClick={stepBack}>← Back</AdjustButton>
+              <AdjustButton onClick={() => setPaused((p) => !p)}>
+                {paused ? "Resume" : "Pause"}
+              </AdjustButton>
+              <AdjustButton onClick={skip}>Skip →</AdjustButton>
+            </div>
+          ) : (
+            <div className="mt-7 flex items-center justify-center">
+              <button
+                onClick={onClose}
+                className="rounded-xl bg-[color:var(--color-accent)] px-6 py-3 text-[16px] font-semibold text-white active:bg-[color:var(--color-accent-pressed)]"
+              >
+                Done
+              </button>
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          @keyframes _it_fade { from { opacity: 0 } to { opacity: 1 } }
+          @keyframes _it_slide { from { transform: translateY(100%) } to { transform: translateY(0) } }
+          .animate-fade { animation: _it_fade 200ms ease-out forwards; }
+          .animate-slide-up { animation: _it_slide 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+        `}</style>
+      </div>
+    </Overlay>
   );
 }
 

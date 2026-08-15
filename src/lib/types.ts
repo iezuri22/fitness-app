@@ -115,6 +115,13 @@ export interface Workout {
   format?: WorkoutFormat;
   /** AMRAP and flow — the session length in minutes. */
   capMinutes?: number;
+  /**
+   * Explicit duration in minutes, copied from the template this was started
+   * from. Without it a workout falls back to the per-set estimate, so
+   * "Home · Full Body 30" would read 30 min in Routines and 24 min on Today
+   * — the same routine, two answers. See WorkoutTemplate.estimatedMinutes.
+   */
+  estimatedMinutes?: number;
   /** AMRAP only — full rounds finished. This is the score we track over time. */
   roundsCompleted?: number;
   /** AMRAP only — reps into the next, unfinished round. */
@@ -153,6 +160,16 @@ export interface WorkoutTemplate {
   focus: string;              // "Upper Body + Shoulder Rehab"
   category: TemplateCategory;
   plannedSets: PlannedSet[];
+  /**
+   * Explicit duration in minutes. Overrides the per-set estimate everywhere
+   * the template's length is shown. Set it when the name makes a promise
+   * ("Gym · Express Upper 25") — the estimator models working time plus rest
+   * and reliably runs low on strength work, where setup, plate changes and
+   * walking between machines are most of the gap. Leave it undefined to let
+   * the estimate float with the set list.
+   *
+   * Ignored for `amrap` and `flow`, whose duration is `capMinutes`.
+   */
   estimatedMinutes?: number;
   notes?: string;
   /** ISO week tag (e.g. "2026-W17"). When set, this template is offered in

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Overlay } from "./ui";
 import type { PlannedSet } from "../lib/types";
 
 /**
@@ -67,35 +68,37 @@ export default function SingleSetTimer({
   const isWork = phase === "work";
 
   return (
-    <div
-      className={`fixed inset-0 z-[60] flex flex-col items-center justify-center ${
-        isWork ? "bg-[color:var(--color-accent)]" : "bg-black"
-      }`}
-    >
-      <div className="mb-3 text-[17px] font-medium text-white/70">
-        {phase === "work" ? "Work" : phase === "rest" ? "Rest" : "Done"}
-      </div>
+    <Overlay>
       <div
-        className="font-semibold tnum leading-none tracking-[-0.03em] text-white"
-        style={{ fontSize: "min(32vw, 180px)" }}
+        className={`fixed inset-0 z-[60] flex flex-col items-center justify-center ${
+          isWork ? "bg-[color:var(--color-accent)]" : "bg-black"
+        }`}
       >
-        {mm}:{ss.toString().padStart(2, "0")}
-      </div>
-      <div className="mt-4 max-w-full truncate px-8 text-center text-[15px] text-white/70">
-        {set.exerciseName} · {set.targetReps}
-        {set.targetWeight ? ` @ ${set.targetWeight} lb` : ""}
-      </div>
-
-      {phase !== "done" && (
-        <div className="mt-10 flex items-center gap-2.5">
-          <TimerAction onClick={() => setPaused((p) => !p)}>
-            {paused ? "Resume" : "Pause"}
-          </TimerAction>
-          <TimerAction onClick={() => setRemaining(0)}>Skip</TimerAction>
-          <TimerAction onClick={onClose}>Cancel</TimerAction>
+        <div className="mb-3 text-[17px] font-medium text-white/70">
+          {phase === "work" ? "Work" : phase === "rest" ? "Rest" : "Done"}
         </div>
-      )}
-    </div>
+        <div
+          className="font-semibold tnum leading-none tracking-[-0.03em] text-white"
+          style={{ fontSize: "min(32vw, 180px)" }}
+        >
+          {mm}:{ss.toString().padStart(2, "0")}
+        </div>
+        <div className="mt-4 max-w-full truncate px-8 text-center text-[15px] text-white/70">
+          {set.exerciseName} · {set.targetReps}
+          {set.targetWeight ? ` @ ${set.targetWeight} lb` : ""}
+        </div>
+
+        {phase !== "done" && (
+          <div className="mt-10 flex items-center gap-2.5">
+            <TimerAction onClick={() => setPaused((p) => !p)}>
+              {paused ? "Resume" : "Pause"}
+            </TimerAction>
+            <TimerAction onClick={() => setRemaining(0)}>Skip</TimerAction>
+            <TimerAction onClick={onClose}>Cancel</TimerAction>
+          </div>
+        )}
+      </div>
+    </Overlay>
   );
 }
 

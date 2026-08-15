@@ -3,6 +3,7 @@ import type {
   InputHTMLAttributes,
   ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 
 /* ==========================================================================
@@ -556,6 +557,25 @@ export function EmptyState({
 /* ------------------------------ Bottom sheet ----------------------------- */
 
 /**
+ * Host for anything that covers the screen — sheets, timers, pickers.
+ *
+ * Renders into <body> instead of in place, and that is not optional. `<main>`
+ * carries `animate-fade-in`, whose `animation-fill-mode: both` keeps the
+ * animation applied after it finishes, which makes <main> a permanent
+ * stacking context. Any overlay rendered by a page therefore had its z-index
+ * scoped INSIDE <main>, so the fixed tab bar (z-20, root context) painted
+ * over the bottom ~58px of it — quietly swallowing whichever button sat
+ * there. Portalling out puts overlays back in the root stacking context where
+ * their z-50 means what it says.
+ *
+ * Events still propagate through the React tree, so backdrop-click-to-close
+ * and stopPropagation() work exactly as they read.
+ */
+export function Overlay({ children }: { children: ReactNode }) {
+  return createPortal(children, document.body);
+}
+
+/**
  * Modal bottom sheet with a grabber. Backdrop dims and blurs; the sheet
  * slides from the bottom edge.
  */
@@ -571,27 +591,29 @@ export function Sheet({
   className?: string;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      role="dialog"
-      aria-modal="true"
-      aria-label={label}
-    >
-      <button
-        aria-label="Dismiss"
-        onClick={onClose}
-        className="absolute inset-0 animate-backdrop-in bg-black/50 backdrop-blur-[2px]"
-      />
+    <Overlay>
       <div
-        className={`animate-sheet-up relative flex max-h-[88vh] w-full max-w-xl flex-col rounded-t-[16px] bg-[color:var(--color-surface)] ${className}`}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed inset-0 z-50 flex items-end justify-center"
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
       >
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
+        <button
+          aria-label="Dismiss"
+          onClick={onClose}
+          className="absolute inset-0 animate-backdrop-in bg-black/50 backdrop-blur-[2px]"
+        />
+        <div
+          className={`animate-sheet-up relative flex max-h-[88vh] w-full max-w-xl flex-col rounded-t-[16px] bg-[color:var(--color-surface)] ${className}`}
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="flex justify-center pt-2 pb-1">
+            <div className="h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
+          </div>
+          {children}
         </div>
-        {children}
       </div>
-    </div>
+    </Overlay>
   );
 }
 

@@ -7,6 +7,7 @@
     "dev": "vite",
     "preview:ui": "VITE_UI_PREVIEW=1 vite --port 5174",
     "build": "tsc -b && vite build",
+    "check:durations": "npx tsx scripts/check-durations.ts",
     "lint": "eslint .",
     "preview": "vite preview",
     "publish-demos": "node scripts/add-demos.mjs",

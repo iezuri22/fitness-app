@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Overlay } from "./ui";
 import type { Exercise, PlannedSet, SetType, Workout } from "../lib/types";
 import {
   buildBlocks,
@@ -199,154 +200,156 @@ export default function ManagePlanSheet({
       : `Tap "Superset (${selectedIndices.length})" to link, or tap another to add`;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[color:var(--color-bg)]">
-      <header
-        className="border-b border-[color:var(--color-border)] px-5 pb-4"
-        style={{ paddingTop: "calc(env(safe-area-inset-top) + 14px)" }}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-[17px] font-semibold tracking-[-0.01em]">Manage plan</div>
+    <Overlay>
+      <div className="fixed inset-0 z-50 flex flex-col bg-[color:var(--color-bg)]">
+        <header
+          className="border-b border-[color:var(--color-border)] px-5 pb-4"
+          style={{ paddingTop: "calc(env(safe-area-inset-top) + 14px)" }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[17px] font-semibold tracking-[-0.01em]">Manage plan</div>
+            <button
+              onClick={onClose}
+              className="text-sm font-semibold text-[color:var(--color-accent)]"
+            >
+              Done
+            </button>
+          </div>
+          <div className="text-lg font-bold tracking-tight">{workout.title}</div>
+          <div className="text-xs text-[color:var(--color-muted)] mt-0.5">
+            {hint}
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-5 pb-48">
+          {/* Top "move here" slot (move to position 0). Visible when:
+              - a block is solo-selected (tap flow), OR
+              - a block is being dragged (drag flow) AND it's not already at top */}
+          <MoveSlot
+            visible={
+              (soloSelectedIndex != null && soloSelectedIndex !== 0) ||
+              (draggingIndex != null && draggingIndex !== 0)
+            }
+            isDragTarget={draggingIndex != null}
+            onClick={() => moveTo(0)}
+            onDrop={() => void dragMoveTo(0)}
+          />
+
+          {blocks.map((block) => {
+            const isSelected = selectedIndices.includes(block.index);
+            const selectionOrder = isSelected
+              ? selectedIndices.indexOf(block.index) + 1
+              : null;
+
+            // "Move here" slot AFTER this block — visible in two cases:
+            //   - tap flow: exactly ONE block selected and placing here changes order
+            //   - drag flow: a block is dragging and placing here changes order
+            const canBeTapMovedOver =
+              soloSelectedIndex != null &&
+              block.index !== soloSelectedIndex &&
+              block.index !== soloSelectedIndex - 1;
+            const canBeDragMovedOver =
+              draggingIndex != null &&
+              block.index !== draggingIndex &&
+              block.index !== draggingIndex - 1;
+
+            return (
+              <div
+                key={
+                  block.kind === "exercise"
+                    ? `ex:${block.exerciseId}`
+                    : `ss:${block.supersetGroupId}`
+                }
+              >
+                <ManageBlockRow
+                  block={block}
+                  gifByExerciseId={gifByExerciseId}
+                  isSelected={isSelected}
+                  selectionOrder={selectionOrder}
+                  anyOtherSelected={
+                    selectedIndices.length > 0 && !isSelected
+                  }
+                  isDragging={draggingIndex === block.index}
+                  anyDragging={draggingIndex != null}
+                  onSelect={() => toggleSelect(block.index)}
+                  onDragStart={() => setDraggingIndex(block.index)}
+                  onDragEnd={() => setDraggingIndex(null)}
+                  onEditTimer={(setIds, currentWork, currentRest, label) =>
+                    setTimerEditor({
+                      setIds,
+                      work: currentWork,
+                      rest: currentRest,
+                      label,
+                    })
+                  }
+                  onPatchSet={patchSet}
+                  onDuplicateSet={duplicateSet}
+                  onRemoveSet={removeSet}
+                />
+                <MoveSlot
+                  visible={canBeTapMovedOver || canBeDragMovedOver}
+                  isDragTarget={draggingIndex != null}
+                  onClick={() => {
+                    if (soloSelectedIndex == null) return;
+                    const targetIndex =
+                      soloSelectedIndex > block.index
+                        ? block.index + 1
+                        : block.index;
+                    void moveTo(targetIndex);
+                  }}
+                  onDrop={() => {
+                    if (draggingIndex == null) return;
+                    const targetIndex =
+                      draggingIndex > block.index ? block.index + 1 : block.index;
+                    void dragMoveTo(targetIndex);
+                  }}
+                />
+              </div>
+            );
+          })}
+
           <button
-            onClick={onClose}
-            className="text-sm font-semibold text-[color:var(--color-accent)]"
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="mt-4 w-full text-sm font-semibold text-[color:var(--color-accent)] border-2 border-dashed border-[color:var(--color-border)] rounded-xl py-4 hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-accent)]/5"
           >
-            Done
+            + Add exercise
           </button>
         </div>
-        <div className="text-lg font-bold tracking-tight">{workout.title}</div>
-        <div className="text-xs text-[color:var(--color-muted)] mt-0.5">
-          {hint}
-        </div>
-      </header>
 
-      <div className="flex-1 overflow-y-auto p-5 pb-48">
-        {/* Top "move here" slot (move to position 0). Visible when:
-            - a block is solo-selected (tap flow), OR
-            - a block is being dragged (drag flow) AND it's not already at top */}
-        <MoveSlot
-          visible={
-            (soloSelectedIndex != null && soloSelectedIndex !== 0) ||
-            (draggingIndex != null && draggingIndex !== 0)
-          }
-          isDragTarget={draggingIndex != null}
-          onClick={() => moveTo(0)}
-          onDrop={() => void dragMoveTo(0)}
-        />
+        {mode.kind === "selecting" && selectedBlocks.length > 0 && (
+          <SelectionActionBar
+            selectedBlocks={selectedBlocks}
+            onSuperset={() => void supersetSelected()}
+            onUnlink={() => {
+              if (soloSelectedIndex == null) return;
+              void doUnlink(soloSelectedIndex);
+            }}
+            onCancel={() => setMode({ kind: "idle" })}
+          />
+        )}
 
-        {blocks.map((block) => {
-          const isSelected = selectedIndices.includes(block.index);
-          const selectionOrder = isSelected
-            ? selectedIndices.indexOf(block.index) + 1
-            : null;
+        {pickerOpen && (
+          <ExercisePicker
+            exercises={exercises}
+            existingExerciseIds={new Set(workout.plannedSets.map((s) => s.exerciseId))}
+            onPick={addExercise}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
 
-          // "Move here" slot AFTER this block — visible in two cases:
-          //   - tap flow: exactly ONE block selected and placing here changes order
-          //   - drag flow: a block is dragging and placing here changes order
-          const canBeTapMovedOver =
-            soloSelectedIndex != null &&
-            block.index !== soloSelectedIndex &&
-            block.index !== soloSelectedIndex - 1;
-          const canBeDragMovedOver =
-            draggingIndex != null &&
-            block.index !== draggingIndex &&
-            block.index !== draggingIndex - 1;
-
-          return (
-            <div
-              key={
-                block.kind === "exercise"
-                  ? `ex:${block.exerciseId}`
-                  : `ss:${block.supersetGroupId}`
-              }
-            >
-              <ManageBlockRow
-                block={block}
-                gifByExerciseId={gifByExerciseId}
-                isSelected={isSelected}
-                selectionOrder={selectionOrder}
-                anyOtherSelected={
-                  selectedIndices.length > 0 && !isSelected
-                }
-                isDragging={draggingIndex === block.index}
-                anyDragging={draggingIndex != null}
-                onSelect={() => toggleSelect(block.index)}
-                onDragStart={() => setDraggingIndex(block.index)}
-                onDragEnd={() => setDraggingIndex(null)}
-                onEditTimer={(setIds, currentWork, currentRest, label) =>
-                  setTimerEditor({
-                    setIds,
-                    work: currentWork,
-                    rest: currentRest,
-                    label,
-                  })
-                }
-                onPatchSet={patchSet}
-                onDuplicateSet={duplicateSet}
-                onRemoveSet={removeSet}
-              />
-              <MoveSlot
-                visible={canBeTapMovedOver || canBeDragMovedOver}
-                isDragTarget={draggingIndex != null}
-                onClick={() => {
-                  if (soloSelectedIndex == null) return;
-                  const targetIndex =
-                    soloSelectedIndex > block.index
-                      ? block.index + 1
-                      : block.index;
-                  void moveTo(targetIndex);
-                }}
-                onDrop={() => {
-                  if (draggingIndex == null) return;
-                  const targetIndex =
-                    draggingIndex > block.index ? block.index + 1 : block.index;
-                  void dragMoveTo(targetIndex);
-                }}
-              />
-            </div>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          className="mt-4 w-full text-sm font-semibold text-[color:var(--color-accent)] border-2 border-dashed border-[color:var(--color-border)] rounded-xl py-4 hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-accent)]/5"
-        >
-          + Add exercise
-        </button>
+        {timerEditor && (
+          <TimerEditor
+            label={timerEditor.label}
+            work={timerEditor.work}
+            rest={timerEditor.rest}
+            onSave={(w, r) => saveTimer(timerEditor.setIds, w, r)}
+            onClear={() => clearTimer(timerEditor.setIds)}
+            onClose={() => setTimerEditor(null)}
+          />
+        )}
       </div>
-
-      {mode.kind === "selecting" && selectedBlocks.length > 0 && (
-        <SelectionActionBar
-          selectedBlocks={selectedBlocks}
-          onSuperset={() => void supersetSelected()}
-          onUnlink={() => {
-            if (soloSelectedIndex == null) return;
-            void doUnlink(soloSelectedIndex);
-          }}
-          onCancel={() => setMode({ kind: "idle" })}
-        />
-      )}
-
-      {pickerOpen && (
-        <ExercisePicker
-          exercises={exercises}
-          existingExerciseIds={new Set(workout.plannedSets.map((s) => s.exerciseId))}
-          onPick={addExercise}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
-
-      {timerEditor && (
-        <TimerEditor
-          label={timerEditor.label}
-          work={timerEditor.work}
-          rest={timerEditor.rest}
-          onSave={(w, r) => saveTimer(timerEditor.setIds, w, r)}
-          onClear={() => clearTimer(timerEditor.setIds)}
-          onClose={() => setTimerEditor(null)}
-        />
-      )}
-    </div>
+    </Overlay>
   );
 }
 
@@ -885,82 +888,84 @@ function TimerEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center">
-      <button
-        aria-label="Dismiss"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-      />
-      <div
-        className="animate-sheet-up relative w-full max-w-xl rounded-t-[16px] bg-[color:var(--color-surface)] px-6 pb-8 pt-2"
-        style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-      >
-        <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
-        <div className="flex items-center justify-between mb-1">
-          <div className="text-[17px] font-semibold tracking-[-0.01em]">Timer</div>
-          <button
-            onClick={onClose}
-            className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
-          >
-            Cancel
-          </button>
-        </div>
-        <div className="text-base font-bold tracking-tight truncate">{label}</div>
-        <p className="text-xs text-[color:var(--color-muted)] mt-1 mb-4">
-          A ▶ button appears on every set. Work → rest → done. Use min + sec for
-          long holds like 3 min carries or 30 min cardio.
-        </p>
-
-        <div className="space-y-3 mb-4">
-          <DurationField
-            heading="Work"
-            min={wm}
-            sec={ws}
-            onMinChange={setWm}
-            onSecChange={setWs}
-            totalLabel={formatDur(totalWork)}
-          />
-          <DurationField
-            heading="Rest"
-            min={rm}
-            sec={rs}
-            onMinChange={setRm}
-            onSecChange={setRs}
-            totalLabel={formatDur(totalRest)}
-            allowZero
-          />
-        </div>
-
-        <div className="mb-2 text-[15px] font-semibold tracking-[-0.01em]">Presets</div>
-        <div className="flex flex-wrap gap-2 mb-6">
-          {presets.map((p) => (
+    <Overlay>
+      <div className="fixed inset-0 z-[60] flex items-end justify-center">
+        <button
+          aria-label="Dismiss"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
+        <div
+          className="animate-sheet-up relative w-full max-w-xl rounded-t-[16px] bg-[color:var(--color-surface)] px-6 pb-8 pt-2"
+          style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
+        >
+          <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[17px] font-semibold tracking-[-0.01em]">Timer</div>
             <button
-              key={p.label}
-              onClick={() => applyPreset(p)}
-              className="px-3 py-1.5 rounded-full bg-[color:var(--color-surface-2)] text-xs font-semibold text-[color:var(--color-muted)] hover:text-white"
+              onClick={onClose}
+              className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
             >
-              {p.label}
+              Cancel
             </button>
-          ))}
-        </div>
+          </div>
+          <div className="text-base font-bold tracking-tight truncate">{label}</div>
+          <p className="text-xs text-[color:var(--color-muted)] mt-1 mb-4">
+            A ▶ button appears on every set. Work → rest → done. Use min + sec for
+            long holds like 3 min carries or 30 min cardio.
+          </p>
 
-        <div className="flex gap-2">
-          <button
-            onClick={onClear}
-            className="flex-1 rounded-full border border-[color:var(--color-border)] text-[color:var(--color-muted)] font-semibold py-3 hover:text-[color:var(--color-danger)] hover:border-[color:var(--color-danger)]"
-          >
-            Remove timer
-          </button>
-          <button
-            onClick={() => onSave(Math.max(0, totalWork), Math.max(0, totalRest))}
-            disabled={totalWork <= 0}
-            className="flex-1 rounded-full bg-[color:var(--color-accent)] text-white font-semibold py-3 disabled:opacity-40"
-          >
-            Save
-          </button>
+          <div className="space-y-3 mb-4">
+            <DurationField
+              heading="Work"
+              min={wm}
+              sec={ws}
+              onMinChange={setWm}
+              onSecChange={setWs}
+              totalLabel={formatDur(totalWork)}
+            />
+            <DurationField
+              heading="Rest"
+              min={rm}
+              sec={rs}
+              onMinChange={setRm}
+              onSecChange={setRs}
+              totalLabel={formatDur(totalRest)}
+              allowZero
+            />
+          </div>
+
+          <div className="mb-2 text-[15px] font-semibold tracking-[-0.01em]">Presets</div>
+          <div className="flex flex-wrap gap-2 mb-6">
+            {presets.map((p) => (
+              <button
+                key={p.label}
+                onClick={() => applyPreset(p)}
+                className="px-3 py-1.5 rounded-full bg-[color:var(--color-surface-2)] text-xs font-semibold text-[color:var(--color-muted)] hover:text-white"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClear}
+              className="flex-1 rounded-full border border-[color:var(--color-border)] text-[color:var(--color-muted)] font-semibold py-3 hover:text-[color:var(--color-danger)] hover:border-[color:var(--color-danger)]"
+            >
+              Remove timer
+            </button>
+            <button
+              onClick={() => onSave(Math.max(0, totalWork), Math.max(0, totalRest))}
+              disabled={totalWork <= 0}
+              className="flex-1 rounded-full bg-[color:var(--color-accent)] text-white font-semibold py-3 disabled:opacity-40"
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }
 

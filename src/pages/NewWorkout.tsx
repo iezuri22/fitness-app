@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { createWorkout, listExercises } from "../lib/db";
-import { Button, Card, Input, Tag } from "../components/ui";
+import { Button, Card, Input, Overlay, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
 import type { Exercise, ExerciseCategory, PlannedSet, SetType } from "../lib/types";
 import { defaultEstimatedMinutes } from "../lib/duration";
@@ -361,102 +361,104 @@ function ExercisePicker({
   }, [exercises, q, cat]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      {/* Backdrop */}
-      <button
-        aria-label="Close picker"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-bg"
-      />
+    <Overlay>
+      <div className="fixed inset-0 z-50 flex items-end justify-center">
+        {/* Backdrop */}
+        <button
+          aria-label="Close picker"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-bg"
+        />
 
-      {/* Sheet */}
-      <div
-        className="animate-slide-up-sheet relative flex h-[88vh] w-full max-w-xl flex-col rounded-t-[16px] bg-[color:var(--color-surface)]"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        <div className="px-5 pt-3 pb-4 border-b border-[color:var(--color-border)]">
-          <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[17px] font-semibold tracking-[-0.01em]">Pick an exercise</div>
-            <button
-              onClick={onClose}
-              className="text-sm font-semibold text-[color:var(--color-muted)] hover:text-white"
-            >
-              Done
-            </button>
-          </div>
-          <Input
-            placeholder="Search…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <div className="flex gap-2 overflow-x-auto pt-3 -mx-5 px-5">
-            {PICKER_CATEGORIES.map((c) => (
+        {/* Sheet */}
+        <div
+          className="animate-slide-up-sheet relative flex h-[88vh] w-full max-w-xl flex-col rounded-t-[16px] bg-[color:var(--color-surface)]"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="px-5 pt-3 pb-4 border-b border-[color:var(--color-border)]">
+            <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[17px] font-semibold tracking-[-0.01em]">Pick an exercise</div>
               <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                  cat === c
-                    ? "bg-[color:var(--color-accent)] text-white"
-                    : "bg-[color:var(--color-surface-2)] text-[color:var(--color-muted)]"
-                }`}
+                onClick={onClose}
+                className="text-sm font-semibold text-[color:var(--color-muted)] hover:text-white"
               >
-                {c}
+                Done
               </button>
-            ))}
-          </div>
-        </div>
-
-        <ul className="overflow-y-auto flex-1 p-3 space-y-1.5">
-          {filtered.length === 0 && (
-            <li className="py-12 text-center text-sm text-[color:var(--color-muted)]">
-              No exercises match.
-            </li>
-          )}
-          {filtered.map((e) => {
-            const added = alreadyAdded.has(e.id);
-            return (
-              <li key={e.id}>
+            </div>
+            <Input
+              placeholder="Search…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <div className="flex gap-2 overflow-x-auto pt-3 -mx-5 px-5">
+              {PICKER_CATEGORIES.map((c) => (
                 <button
-                  onClick={() => onPick(e)}
-                  className={`flex w-full items-center gap-3 rounded-[12px] p-2.5 text-left transition-colors ${
-                    added
-                      ? "bg-[color:var(--color-accent-soft)]"
-                      : "active:bg-[color:var(--color-surface-2)]"
+                  key={c}
+                  onClick={() => setCat(c)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                    cat === c
+                      ? "bg-[color:var(--color-accent)] text-white"
+                      : "bg-[color:var(--color-surface-2)] text-[color:var(--color-muted)]"
                   }`}
                 >
-                  <ExerciseGif name={e.name} gifUrl={e.gifUrl} size="thumb" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 truncate text-[16px]">
-                      <span className="truncate">{e.name}</span>
-                      {added && (
-                        <span className="shrink-0 text-[13px] text-[color:var(--color-accent)]">
-                          Added
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 truncate text-[13px] text-[color:var(--color-muted)]">
-                      {e.category}
-                      {e.equipment.length > 0 && ` · ${e.equipment.join(", ")}`}
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 items-end shrink-0">
-                    {e.isPT && <Tag variant="accent">PT</Tag>}
-                    {e.isBannedLatarjet && <Tag variant="danger">Banned</Tag>}
-                  </div>
+                  {c}
                 </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+              ))}
+            </div>
+          </div>
 
-      <style>{`
-        @keyframes _picker_fade { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes _picker_slide { from { transform: translateY(100%) } to { transform: translateY(0) } }
-        .animate-fade-bg { animation: _picker_fade 200ms ease-out forwards; }
-        .animate-slide-up-sheet { animation: _picker_slide 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards; }
-      `}</style>
-    </div>
+          <ul className="overflow-y-auto flex-1 p-3 space-y-1.5">
+            {filtered.length === 0 && (
+              <li className="py-12 text-center text-sm text-[color:var(--color-muted)]">
+                No exercises match.
+              </li>
+            )}
+            {filtered.map((e) => {
+              const added = alreadyAdded.has(e.id);
+              return (
+                <li key={e.id}>
+                  <button
+                    onClick={() => onPick(e)}
+                    className={`flex w-full items-center gap-3 rounded-[12px] p-2.5 text-left transition-colors ${
+                      added
+                        ? "bg-[color:var(--color-accent-soft)]"
+                        : "active:bg-[color:var(--color-surface-2)]"
+                    }`}
+                  >
+                    <ExerciseGif name={e.name} gifUrl={e.gifUrl} size="thumb" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 truncate text-[16px]">
+                        <span className="truncate">{e.name}</span>
+                        {added && (
+                          <span className="shrink-0 text-[13px] text-[color:var(--color-accent)]">
+                            Added
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 truncate text-[13px] text-[color:var(--color-muted)]">
+                        {e.category}
+                        {e.equipment.length > 0 && ` · ${e.equipment.join(", ")}`}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 items-end shrink-0">
+                      {e.isPT && <Tag variant="accent">PT</Tag>}
+                      {e.isBannedLatarjet && <Tag variant="danger">Banned</Tag>}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <style>{`
+          @keyframes _picker_fade { from { opacity: 0 } to { opacity: 1 } }
+          @keyframes _picker_slide { from { transform: translateY(100%) } to { transform: translateY(0) } }
+          .animate-fade-bg { animation: _picker_fade 200ms ease-out forwards; }
+          .animate-slide-up-sheet { animation: _picker_slide 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+        `}</style>
+      </div>
+    </Overlay>
   );
 }

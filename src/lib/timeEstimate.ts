@@ -3,6 +3,15 @@ import type { PlannedSet, Workout, WorkoutTemplate } from "./types";
 /**
  * Workout duration estimation.
  *
+ * Precedence, highest first:
+ *   1. `capMinutes` on an AMRAP or flow — those run to a clock, so the clock
+ *      IS the duration.
+ *   2. `estimatedMinutes` on the template — an explicit duration set by the
+ *      author or by the user in Library → Name & duration. Overrides the
+ *      model, which is the point: the model is a guess and the person who
+ *      wrote the routine knows how long it actually takes.
+ *   3. The per-set model below.
+ *
  * Per-set breakdown:
  *   - If `estimatedMinutes` is set:
  *       - Treat as cardio when >= 5 min (it already folds in its own pacing)
@@ -41,7 +50,8 @@ export function setMinutes(s: PlannedSet): number {
 /** Estimated minutes for a full template or workout's plannedSets. */
 export function estimatePlannedMinutes(
   subject: Pick<WorkoutTemplate | Workout, "plannedSets"> &
-    Partial<Pick<WorkoutTemplate | Workout, "format" | "capMinutes">>
+    Partial<Pick<WorkoutTemplate | Workout, "format" | "capMinutes">> &
+    Partial<Pick<WorkoutTemplate, "estimatedMinutes">>
 ): number {
   // Formats that run to a clock report that clock. An AMRAP's `plannedSets` is
   // ONE round, so summing it would call a 20-minute benchmark a 4-minute
@@ -49,6 +59,13 @@ export function estimatePlannedMinutes(
   // would add a warm-up buffer a stretch routine doesn't have.
   if ((subject.format === "amrap" || subject.format === "flow") && subject.capMinutes) {
     return subject.capMinutes;
+  }
+
+  // An explicit duration beats the model. Every starter template whose name
+  // carries a number ("Home · Kettlebell 25") sets this, so the number on the
+  // card can never drift away from the number in the name.
+  if (subject.estimatedMinutes != null && subject.estimatedMinutes > 0) {
+    return subject.estimatedMinutes;
   }
 
   const sets = subject.plannedSets ?? [];

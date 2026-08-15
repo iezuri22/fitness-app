@@ -11,6 +11,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   query,
   where,
   orderBy,
@@ -518,16 +519,29 @@ export async function createTemplate(
   return ref.id;
 }
 
+/**
+ * A template patch. `null` on an optional field REMOVES it.
+ *
+ * That distinction matters because the Firestore instance runs with
+ * `ignoreUndefinedProperties: true`, so `{ estimatedMinutes: undefined }` is
+ * dropped from the write entirely rather than clearing anything — the field
+ * would survive every attempt to unset it.
+ */
+export type TemplatePatch = Partial<WorkoutTemplate> & {
+  estimatedMinutes?: number | null;
+  capMinutes?: number | null;
+};
+
 export async function saveTemplate(
   uid: string,
   id: string,
-  patch: Partial<WorkoutTemplate>
+  patch: TemplatePatch
 ): Promise<void> {
-  await setDoc(
-    doc(db, templatesPath(uid), id),
-    { ...patch, updatedAt: Date.now() },
-    { merge: true }
-  );
+  const body: Record<string, unknown> = { updatedAt: Date.now() };
+  for (const [k, v] of Object.entries(patch)) {
+    body[k] = v === null ? deleteField() : v;
+  }
+  await setDoc(doc(db, templatesPath(uid), id), body, { merge: true });
   invalidate(cacheKey.templates(uid));
 }
 
@@ -580,6 +594,7 @@ export async function startWorkoutFromTemplate(
     fromTemplateId: template.id,
     format: template.format,
     capMinutes: template.capMinutes,
+    estimatedMinutes: template.estimatedMinutes,
   });
   return newId;
 }

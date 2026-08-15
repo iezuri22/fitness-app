@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getAmrapHistory, getWorkout, listExercises, saveWorkout, type AmrapResult } from "../lib/db";
-import { Button, Card, PageSkeleton, ProgressBar, Tag } from "../components/ui";
+import { Button, Card, Overlay, PageSkeleton, ProgressBar, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
 import RestTimer from "../components/RestTimer";
 import IntervalTimer from "../components/IntervalTimer";
@@ -461,86 +461,88 @@ function IntervalSetupSheet({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button
-        aria-label="Dismiss"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-      />
-      <div
-        className="animate-sheet-up relative w-full max-w-xl rounded-t-[16px] bg-[color:var(--color-surface)] px-6 pb-8 pt-2"
-        style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-      >
-        <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-[17px] font-semibold tracking-[-0.01em]">Interval timer</div>
+    <Overlay>
+      <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <button
+          aria-label="Dismiss"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
+        <div
+          className="animate-sheet-up relative w-full max-w-xl rounded-t-[16px] bg-[color:var(--color-surface)] px-6 pb-8 pt-2"
+          style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
+        >
+          <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-muted-2)]" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-[17px] font-semibold tracking-[-0.01em]">Interval timer</div>
+            <button
+              onClick={onClose}
+              className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <p className="mb-4 text-[15px] leading-snug text-[color:var(--color-muted)]">
+            Runs through your remaining sets back-to-back. Alarm sounds at every
+            transition; each finished set auto-marks complete.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <label className="block">
+              <span className="text-[13px] text-[color:var(--color-muted)]">
+                Work (sec)
+              </span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={5}
+                max={600}
+                value={work}
+                onChange={(e) => setWork(Math.max(5, Number(e.target.value) || 0))}
+                className="mt-1 h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] tnum outline-none focus:bg-[color:var(--color-surface-3)]"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[13px] text-[color:var(--color-muted)]">
+                Rest (sec)
+              </span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={600}
+                value={rest}
+                onChange={(e) => setRest(Math.max(0, Number(e.target.value) || 0))}
+                className="mt-1 h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] tnum outline-none focus:bg-[color:var(--color-surface-3)]"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-6">
+            {presets.map((p) => (
+              <button
+                key={p.label}
+                onClick={() => {
+                  setWork(p.work);
+                  setRest(p.rest);
+                }}
+                className="rounded-full bg-[color:var(--color-surface-2)] px-3.5 py-1.5 text-[13px] font-medium text-[color:var(--color-muted)] transition-colors active:bg-[color:var(--color-surface-3)]"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
           <button
-            onClick={onClose}
-            className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
+            onClick={() => onStart(work, rest)}
+            className="w-full rounded-xl bg-[color:var(--color-accent)] py-3.5 text-[17px] font-semibold text-white transition-colors active:bg-[color:var(--color-accent-pressed)]"
           >
-            Cancel
+            Start interval
           </button>
         </div>
-
-        <p className="mb-4 text-[15px] leading-snug text-[color:var(--color-muted)]">
-          Runs through your remaining sets back-to-back. Alarm sounds at every
-          transition; each finished set auto-marks complete.
-        </p>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <label className="block">
-            <span className="text-[13px] text-[color:var(--color-muted)]">
-              Work (sec)
-            </span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={5}
-              max={600}
-              value={work}
-              onChange={(e) => setWork(Math.max(5, Number(e.target.value) || 0))}
-              className="mt-1 h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] tnum outline-none focus:bg-[color:var(--color-surface-3)]"
-            />
-          </label>
-          <label className="block">
-            <span className="text-[13px] text-[color:var(--color-muted)]">
-              Rest (sec)
-            </span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={600}
-              value={rest}
-              onChange={(e) => setRest(Math.max(0, Number(e.target.value) || 0))}
-              className="mt-1 h-11 w-full rounded-xl bg-[color:var(--color-surface-2)] px-3.5 text-[16px] tnum outline-none focus:bg-[color:var(--color-surface-3)]"
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mb-6">
-          {presets.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => {
-                setWork(p.work);
-                setRest(p.rest);
-              }}
-              className="rounded-full bg-[color:var(--color-surface-2)] px-3.5 py-1.5 text-[13px] font-medium text-[color:var(--color-muted)] transition-colors active:bg-[color:var(--color-surface-3)]"
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        <button
-          onClick={() => onStart(work, rest)}
-          className="w-full rounded-xl bg-[color:var(--color-accent)] py-3.5 text-[17px] font-semibold text-white transition-colors active:bg-[color:var(--color-accent-pressed)]"
-        >
-          Start interval
-        </button>
       </div>
-    </div>
+    </Overlay>
   );
 }
 
