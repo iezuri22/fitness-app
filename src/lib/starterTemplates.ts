@@ -108,6 +108,51 @@ const stretch = (name: string, reps = 1, rest = 0, cue?: string): SeedSet[] => [
 ];
 
 /**
+ * A timed block on a cardio machine (or any conditioning work counted by the
+ * clock rather than by reps). `workSeconds` is what makes the set show a
+ * countdown and what makes the duration estimate exact.
+ *
+ * The run+lift program this serves calls for running; these routines put the
+ * same work on the stair climber and the bike instead, converted at roughly
+ * 9-10 minutes per easy mile.
+ */
+const cardio = (
+  name: string,
+  seconds: number,
+  sets = 1,
+  rest = 0,
+  cue?: string,
+  setType: PlannedSet["setType"] = "Warm-up"
+): SeedSet[] =>
+  Array.from({ length: sets }, () => ({
+    name,
+    reps: 1,
+    setType,
+    rest,
+    workSeconds: seconds,
+    cue,
+  }));
+
+/** Timed member of a superset — a circuit station counted by the clock. */
+const timedSS = (
+  key: string,
+  name: string,
+  seconds: number,
+  sets: number,
+  rest: number,
+  cue?: string
+): SeedSet[] =>
+  Array.from({ length: sets }, () => ({
+    name,
+    reps: 1,
+    setType: "Working" as const,
+    rest,
+    workSeconds: seconds,
+    supersetKey: key,
+    cue,
+  }));
+
+/**
  * A timed stretch hold. Unlike `stretch()` this carries `workSeconds`, which
  * does two things: the set gets a ▶ countdown button during the session, and
  * the duration estimate becomes exact instead of the 33s-per-set default.
@@ -986,6 +1031,270 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
       hold("Kneeling Hip Flexor Stretch", 60, "30 each side. This is the one that matters."),
       hold("Figure Four Glute Stretch", 60, "30 each side."),
       hold("Balasana — Child Pose", 60),
+    ],
+  },
+
+  // ---------- RUN + LIFT + BOX PROGRAM (6-day split) ----------
+  // A hypertrophy split wrapped around daily conditioning and a Creed-style
+  // finisher twice a week. The source plan runs 1-3 miles on five days; these
+  // put that work on the stair climber and the bike instead, converted at
+  // roughly 9-10 minutes per easy mile.
+  //
+  // Which machine on which day isn't arbitrary. The climber lands on upper-body
+  // days (Mon, Fri) when legs are fresh; the bike takes the leg days (Wed, Sat)
+  // because it's low-impact and won't compound squat or deadlift fatigue; the
+  // assault bike runs the Tuesday intervals. Swap either for the other freely —
+  // they're interchangeable here.
+  //
+  // Double progression: work the bottom of the rep range up to the top across
+  // sessions, then add weight and start over. Most sets stop 1-3 reps short of
+  // failure. Five conditioning days plus daily lifting only works if you're not
+  // burying yourself on every set.
+  {
+    name: "Gym · Mon — Chest + Shoulders + Tri",
+    minutes: 70,
+    focus: "Monday · Push · Gym",
+    category: "Full",
+    notes:
+      "Climber first, easy and conversational — this is not the workout. Then press. Incline dumbbell is the money set: leave 1-2 reps in the tank and add weight when you hit 10 across all four.",
+    sets: [
+      cardio("Stair Climber (StairMaster)", 900, 1, 120, "15 min easy. Conversational pace — you should be able to talk."),
+      working("Incline Dumbbell Bench Press", 8, undefined, 4, 90, "4 × 6-10. The main lift. 1-2 reps in reserve."),
+      working("Machine Bench Press", 10, undefined, 3, 75, "3 × 8-12. Controlled, full range."),
+      working("Incline Cable Fly", 12, undefined, 3, 60, "3 × 12-15. Stretch at the bottom, squeeze at the top."),
+      working("Pec Deck Fly", 12, undefined, 2, 60, "2 × 12-15. Finisher — chase the pump, not the load."),
+      working("Seated Dumbbell Shoulder Press", 10, undefined, 3, 75, "3 × 8-12. Ribs down, don't arch to press."),
+      working("Cable Lateral Raise", 15, undefined, 4, 45, "4 × 12-20. Light. Lead with the elbow."),
+      working("Machine Rear Delt Fly", 15, undefined, 3, 45, "3 × 15-20. High reps, no swinging."),
+      working("Cable Rope Pushdown", 12, undefined, 3, 45, "3 × 10-15. Elbows pinned."),
+      working("Cable Rope Overhead Triceps Extension", 12, undefined, 3, 45, "3 × 10-15. Full stretch overhead."),
+    ],
+  },
+  {
+    name: "Gym · Tue — Back + Biceps + Creed",
+    minutes: 75,
+    focus: "Tuesday · Pull + Conditioning · Gym",
+    category: "Full",
+    notes:
+      "Interval day. Four hard efforts on the assault bike, easy spinning between — this replaces the 1-mile interval run. Then pull. Finish with three rounds of the Creed circuit; it's a finisher, so pace round one like you still have two to go.",
+    sets: [
+      cardio("Assault Bike", 180, 1, 60, "3 min easy warm-up before the intervals."),
+      cardio("Assault Bike", 60, 4, 90, "4 × 60s hard, 90s easy spinning between. Hard means hard.", "Working"),
+      working("Pull-up", 8, undefined, 3, 90, "3 × 6-10. Assisted or banded is fine — full range beats reps."),
+      working("Lat Pulldown", 10, undefined, 3, 75, "3 × 8-12. Chest up, drive elbows to your pockets."),
+      working("Chest-Supported Machine Row", 10, undefined, 4, 75, "4 × 8-12. The chest pad means no cheating with your back."),
+      working("Dumbbell Single-arm Row", 10, undefined, 3, 60, "3 × 10-12 per side."),
+      working("Cable Straight-Arm Pulldown", 12, undefined, 3, 45, "3 × 12-15. Arms locked, feel the lats."),
+      working("Dumbbell Incline Curl", 10, undefined, 3, 60, "3 × 8-12. Full stretch at the bottom."),
+      working("Cable Curl", 12, undefined, 3, 45, "3 × 10-15. Constant tension."),
+      working("Dumbbell Hammer Curl", 12, undefined, 2, 45, "2 × 10-15."),
+      timedSS("creed", "Jump Rope", 120, 3, 0, "Creed finisher · 3 rounds. 2 min rope."),
+      ss("creed", "Medicine Ball Slam", 10, 3, 0, "10 slams. Full overhead, drive it down."),
+      timedSS("creed", "Battle Ropes", 30, 3, 0, "30s waves."),
+      ss("creed", "Push-up", 15, 3, 90, "15 push-ups, then 60-90s rest before the next round."),
+    ],
+  },
+  {
+    name: "Gym · Wed — Quads + Core",
+    minutes: 70,
+    focus: "Wednesday · Legs + Core · Gym",
+    category: "Full",
+    notes:
+      "The bike here is RECOVERY, not a workout. Do not turn it into intervals — the point is keeping the conditioning frequency without wrecking the squats that follow. Then quads, calves, core.",
+    sets: [
+      cardio("Stationary Bike", 600, 1, 120, "10 min easy. Recovery pace. This should feel like nothing."),
+      working("Barbell Back Squat", 8, undefined, 4, 120, "4 × 6-10. Hack squat is a fine swap. Depth over load."),
+      working("Leg Press", 12, undefined, 3, 90, "3 × 10-15. Controlled negative."),
+      working("Dumbbell Bulgarian Split Squat", 10, undefined, 3, 75, "3 × 8-12 per leg. Rear foot elevated, torso tall."),
+      working("Leg Extension (Machine)", 12, undefined, 3, 60, "3 × 12-15. Pause a beat at the top."),
+      working("Dumbbell Walking Lunge", 20, undefined, 2, 75, "2 × 20 steps total."),
+      working("Standing Calf Raise (Machine)", 12, undefined, 4, 45, "4 × 10-15. Full stretch at the bottom."),
+      working("Seated Calf Raise (Machine)", 15, undefined, 3, 45, "3 × 12-20. Soleus — higher reps."),
+      working("Hanging Leg Raise", 10, undefined, 3, 60, "3 × 8-12. No swinging."),
+      working("Cable Crunch", 12, undefined, 3, 45, "3 × 12-15. Crunch the ribs to the hips."),
+      cardio("Forearm Plank", 50, 3, 45, "3 × 45-60s. Squeeze glutes, ribs down.", "Working"),
+    ],
+  },
+  {
+    name: "Gym · Thu — Boxing Technique 30",
+    minutes: 30,
+    focus: "Thursday · Boxing + Conditioning · Gym",
+    category: "Full",
+    notes:
+      "Technical, not maximal. Hands up, feet moving, breathe. The temptation is to turn this into another conditioning session — don't. Thursday exists so the other five days keep working.",
+    sets: [
+      cardio("Jump Rope", 180, 1, 60, "3 min to warm up the calves and the timing."),
+      cardio("Shadowboxing", 120, 3, 60, "3 × 2 min. Watch your feet, not your hands.", "Working"),
+      cardio("Heavy Bag Round", 120, 3, 90, "3 × 2 min. Combinations over power. 1-2 min rest between rounds.", "Working"),
+      stretch("Cross-Body Shoulder Stretch", 1, 0, "30s each side to finish."),
+    ],
+  },
+  {
+    name: "Home · Thu — Recovery Walk 30",
+    minutes: 30,
+    focus: "Thursday · Recovery · Home",
+    category: "PT Only",
+    notes:
+      "The other Thursday option. No mandatory conditioning. Walk, then open the four areas that five days of lifting and climbing shut down: hips, ankles, hamstrings, t-spine.",
+    sets: [
+      cardio("Walk", 1500, 1, 60, "25 min easy. Outside if you can."),
+      hold("Kneeling Hip Flexor Stretch", 60, "30s each side. Squeeze the back glute."),
+      hold("Calf Stretch at Wall", 60, "30s each side. Ankles take a beating on the climber."),
+      hold("Standing Hamstring Stretch", 60, "30s each side."),
+      hold("Foam Roller Thoracic Extension", 60, "Work up and down the mid-back."),
+      hold("Figure Four Glute Stretch", 60, "30s each side."),
+    ],
+  },
+  {
+    name: "Gym · Fri — Shoulders + Arms",
+    minutes: 80,
+    focus: "Friday · Shoulders + Arms · Gym",
+    category: "Full",
+    notes:
+      "Pump day. Moderate climber first — don't sprint it. Two pressing angles, then lateral and rear delts for volume, then arms. Add the Creed finisher from Tuesday if you've got anything left.",
+    sets: [
+      cardio("Stair Climber (StairMaster)", 900, 1, 120, "15 min moderate. Working, but not a race."),
+      working("Seated Dumbbell Shoulder Press", 10, undefined, 3, 75, "3 × 8-12. Main press."),
+      working("Machine Shoulder Press (neutral grip)", 10, undefined, 3, 75, "3 × 8-12. Neutral grip is kinder on the shoulder."),
+      working("Dumbbell Lateral Raise", 15, undefined, 4, 45, "4 × 12-20. Light. Elbows lead."),
+      working("Cable Lateral Raise", 15, undefined, 3, 45, "3 × 12-20. Constant tension where dumbbells lose it."),
+      working("Reverse Pec Deck", 15, undefined, 3, 45, "3 × 15-20. Rear delts — squeeze, don't heave."),
+      working("EZ-Bar Curl", 10, undefined, 3, 60, "3 × 8-12. Elbows still."),
+      working("Preacher Curl (Machine)", 10, undefined, 3, 60, "3 × 10-12. No bouncing out of the bottom."),
+      working("Dumbbell Hammer Curl", 12, undefined, 2, 45, "2 × 12-15."),
+      working("Close-Grip Bench Press", 10, undefined, 3, 90, "3 × 8-12. Shoulder-width, elbows tucked."),
+      working("Cable Rope Pushdown", 12, undefined, 3, 45, "3 × 10-15."),
+      working("Cable Rope Overhead Triceps Extension", 12, undefined, 2, 45, "2 × 12-15. Long head, full stretch."),
+    ],
+  },
+  {
+    name: "Gym · Sat — Posterior Chain + Athletic",
+    minutes: 85,
+    focus: "Saturday · Posterior Chain · Gym",
+    category: "Full",
+    notes:
+      "Longest conditioning day — 25 min on the bike replaces the 2-3 mile run. Build the distance gradually rather than jumping straight to the top. Then hinge, then the athletic circuit. Scale muscle-ups to jumping muscle-ups or high pull-ups, and toes-to-bar to hanging knee raises.",
+    sets: [
+      cardio("Stationary Bike", 1500, 1, 120, "25 min steady. Your longest piece of the week. Start at 20 and build."),
+      working("Barbell Romanian Deadlift", 8, undefined, 4, 120, "4 × 6-10. Hinge, don't squat it. Soft knees, long hamstrings."),
+      working("Barbell Hip Thrusts", 10, undefined, 3, 90, "3 × 8-12. Chin tucked, ribs down, squeeze at the top."),
+      working("Seated Leg Curl (Machine)", 12, undefined, 3, 60, "3 × 10-15."),
+      working("Dumbbell Reverse Lunge", 10, undefined, 3, 75, "3 × 8-12 per leg."),
+      working("Back Extension (45°)", 12, undefined, 2, 60, "2 × 12-15. Glutes, not lower back."),
+      ss("athletic", "Kettlebell Swings", 12, 3, 0, "Athletic circuit · 3 rounds. 12 swings — hips, not arms."),
+      ss("athletic", "Kettlebell Goblet Squat", 10, 3, 0, "10 goblet squats."),
+      ss("athletic", "Muscle-up", 5, 3, 0, "5 muscle-ups. Scale to jumping muscle-ups or high pull-ups."),
+      ss("athletic", "Toes to Bar", 8, 3, 0, "5-10 toes-to-bar. Scale to hanging knee raises."),
+      timedSS("athletic", "Jump Rope", 75, 3, 90, "60-90s rope, then 90s rest before the next round."),
+    ],
+  },
+
+  // ---------- DAILY AMRAP LAYER ----------
+  // A conditioning workout for every day of the week, deliberately varied in
+  // intensity: two hard, two moderate, three easy. `sets` is ONE round; the
+  // score is rounds completed, tracked per template so you can see the number
+  // move over months.
+  //
+  // These stand alone or stack onto the lifting split above. If you're running
+  // both on the same day, the AMRAP goes after the weights, and on the easy
+  // days it should genuinely feel easy — that's the whole design.
+  {
+    name: "AMRAP · Cindy 20",
+    focus: "Benchmark · 20 min AMRAP · hard · full body",
+    category: "Full",
+    format: "amrap",
+    capMinutes: 20,
+    notes:
+      "The real Cindy. Hard day — push it. 5 pull-ups, 10 push-ups, 15 air squats, as many rounds as possible in 20 minutes. Record your rounds; this is a benchmark you'll come back to.",
+    sets: [
+      round("Pull-up", 5, undefined, "Full hang to chin over. Band-assist rather than half-rep."),
+      round("Push-up", 10, undefined, "Chest to floor, body in one line."),
+      round("Bodyweight Squat", 15, undefined, "Hip crease below the knee."),
+    ],
+  },
+  {
+    name: "AMRAP · Barbara-Lite 25",
+    focus: "Benchmark · 25 min AMRAP · easy · full body",
+    category: "Full",
+    format: "amrap",
+    capMinutes: 25,
+    notes:
+      "Easy day. Nose-breathing pace — if you have to open your mouth, slow down. Rest whenever you want. The point is movement and blood flow, not a score.",
+    sets: [
+      round("Bodyweight Squat", 10, undefined, "Smooth and unhurried."),
+      round("Push-up", 8, undefined, "Stop well short of failure."),
+      cardio("Forearm Plank", 20, 1, 0, "20 seconds. Breathe through your nose.", "Working"),
+    ],
+  },
+  {
+    name: "AMRAP · Hinge Cindy 20",
+    focus: "Benchmark · 20 min AMRAP · moderate · hinge + legs",
+    category: "Full",
+    format: "amrap",
+    capMinutes: 20,
+    notes:
+      "Moderate. Cindy's structure with a hinge in front of it. Keep the swings crisp — when the hips stop snapping, slow down rather than grinding them out.",
+    sets: [
+      round("Kettlebell Swings", 10, undefined, "Hips drive it. The arms are rope."),
+      round("Kettlebell Goblet Squat", 10, undefined, "Elbows inside the knees."),
+      round("Push-up", 10, undefined, "Full range."),
+    ],
+  },
+  {
+    name: "AMRAP · Pull Cindy 25",
+    focus: "Benchmark · 25 min AMRAP · easy · pull + legs",
+    category: "Full",
+    format: "amrap",
+    capMinutes: 25,
+    notes:
+      "Easy day, pulling bias — balances all the pressing in the split. Band rows and hip bridges keep the load low enough that this genuinely recovers you.",
+    sets: [
+      round("Band Seated Row", 10, undefined, "Squeeze the shoulder blades, pause a beat."),
+      round("Bodyweight Squat", 10, undefined),
+      round("Push-up", 5, undefined, "Only five. Resist the urge to add."),
+      round("Glute Bridge", 10, undefined, "Squeeze at the top, ribs down."),
+    ],
+  },
+  {
+    name: "AMRAP · Press Cindy 20",
+    focus: "Benchmark · 20 min AMRAP · moderate · push + legs",
+    category: "Full",
+    format: "amrap",
+    capMinutes: 20,
+    notes:
+      "Moderate. Overhead and unilateral. Push press means legs start it and arms finish it — if you're strict-pressing, the weight's too light or the round's too slow.",
+    sets: [
+      round("Pull-up", 5, undefined, "Band-assist as needed."),
+      round("Push Press", 8, undefined, "Dip, drive, lock out. Dumbbells or barbell."),
+      round("Dumbbell Walking Lunge", 12, undefined, "12 total, six each side."),
+    ],
+  },
+  {
+    name: "AMRAP · Mary-Lite 25",
+    focus: "Benchmark · 25 min AMRAP · hard · full body",
+    category: "Full",
+    format: "amrap",
+    capMinutes: 25,
+    notes:
+      "Hard day — push this one. Pike push-ups are the bodyweight overhead press, so expect the shoulders to be the limiter, not the legs.",
+    sets: [
+      round("Pike Push-up", 5, undefined, "Hips high, head between the hands. Elevate the feet to make it harder."),
+      round("Reverse Lunge", 10, undefined, "10 total, five each side."),
+      round("Bodyweight Squat", 15, undefined),
+    ],
+  },
+  {
+    name: "AMRAP · Recovery 25",
+    focus: "Benchmark · 25 min AMRAP · very easy",
+    category: "PT Only",
+    format: "amrap",
+    capMinutes: 25,
+    notes:
+      "Should feel like nothing. This is an active-recovery day disguised as a workout — if you finish it tired, you did it wrong. Sunday, or any day the legs are cooked.",
+    sets: [
+      round("Bodyweight Squat", 10, undefined, "Easy. No depth heroics."),
+      round("Band Pull-Apart", 10, undefined, "Light band. Opens the chest after a week of pressing."),
+      cardio("Walk", 60, 1, 0, "60 seconds. Yes, just walk.", "Working"),
     ],
   },
 ];

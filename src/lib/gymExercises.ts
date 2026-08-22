@@ -123,4 +123,23 @@ export const GYM_EXERCISES: SeedExercise[] = [
   { name: 'Elliptical', category: 'Cardio', equipment: ['Elliptical'], muscleGroups: ['Legs'], isPT: false, isBannedLatarjet: false },
   { name: 'Assault Bike', category: 'Cardio', equipment: ['Bike'], muscleGroups: ['Legs', 'Full Body'], isPT: false, isBannedLatarjet: false },
   { name: 'Stationary Bike', category: 'Cardio', equipment: ['Bike'], muscleGroups: ['Legs'], isPT: false, isBannedLatarjet: false },
+  // --- Calisthenic / conditioning work for the run+lift+box program ---
+  // Bodyweight pulling and gymnastics: the AMRAP benchmarks are built on these,
+  // and the catalog previously only had assisted/weighted/chin variants.
+  { name: 'Pull-up', category: 'Upper Body', equipment: ['Pull-up bar'], muscleGroups: ['Lats', 'Biceps'], isPT: false, isBannedLatarjet: false, defaultReps: 8 },
+  { name: 'Muscle-up', category: 'Upper Body', equipment: ['Pull-up bar', 'Rings'], muscleGroups: ['Lats', 'Chest', 'Triceps', 'Shoulders'], isPT: false, isBannedLatarjet: false, defaultReps: 5, notes: 'Explosive pull to transition. Scale to jumping muscle-ups or high pull-ups.' },
+  { name: 'Toes to Bar', category: 'Core', equipment: ['Pull-up bar'], muscleGroups: ['Abs', 'Hip Flexors', 'Lats'], isPT: false, isBannedLatarjet: false, defaultReps: 8, notes: 'Scale to hanging knee raises.' },
+  { name: 'Pike Push-up', category: 'Upper Body', equipment: [], muscleGroups: ['Shoulders', 'Triceps'], isPT: false, isBannedLatarjet: false, defaultReps: 8, notes: 'Hips high, head between hands. The bodyweight overhead press.' },
+  // Conditioning tools used by the Creed finisher and the athletic circuit.
+  { name: 'Battle Ropes', category: 'Full Body', equipment: ['Battle ropes'], muscleGroups: ['Shoulders', 'Core', 'Arms'], isPT: false, isBannedLatarjet: false, notes: 'Timed. Alternating waves unless told otherwise.' },
+  { name: 'Medicine Ball Slam', category: 'Full Body', equipment: ['Medicine ball'], muscleGroups: ['Core', 'Lats', 'Shoulders'], isPT: false, isBannedLatarjet: false, defaultReps: 10 },
+  // Boxing — technique work, not another maximal conditioning session.
+  { name: 'Shadowboxing', category: 'Cardio', equipment: [], muscleGroups: ['Full Body'], isPT: false, isBannedLatarjet: false, notes: 'Timed rounds. Stay technical — hands up, feet moving.' },
+  { name: 'Heavy Bag Round', category: 'Cardio', equipment: ['Heavy bag'], muscleGroups: ['Full Body'], isPT: false, isBannedLatarjet: false, notes: 'Timed rounds. Combinations over power.' },
+  // Straight pressing variants the program calls for that the catalog lacked.
+  { name: 'Seated Dumbbell Shoulder Press', category: 'Upper Body', equipment: ['Dumbbell', 'Bench'], muscleGroups: ['Shoulders', 'Triceps'], isPT: false, isBannedLatarjet: false, defaultReps: 10 },
+  { name: 'Dumbbell Bench Press', category: 'Upper Body', equipment: ['Dumbbell', 'Bench'], muscleGroups: ['Chest', 'Triceps'], isPT: false, isBannedLatarjet: false, defaultReps: 10 },
+  // Plain walking, for recovery days and as an AMRAP rest interval. Classified
+  // as time-based by lib/duration.ts, which treats a bare "walk" as cardio.
+  { name: 'Walk', category: 'Cardio', equipment: [], muscleGroups: ['Legs'], isPT: false, isBannedLatarjet: false, notes: 'Easy pace. Recovery, not training.' },
 ];

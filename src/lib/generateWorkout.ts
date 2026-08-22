@@ -77,6 +77,15 @@ const GYM_ONLY = [
   "hack squat", "leg press", "lat pulldown", "pec deck", "t bar", "t-bar",
   "stairmaster", "stair climber", "elliptical", "rowing machine", "assault bike",
   "treadmill", "plate", "rack", "landmine", "harness", "dip bars", "parallel bar",
+  // Kit you only find in a gym. The user's home setup is dumbbells,
+  // kettlebells, bands, a pulley and a foam roller — no rig, ropes or bag.
+  // Matched whole-word by hasPhrase(), so these must be spelled the way the
+  // exercise names actually read — "battle rope" silently matches nothing.
+  "battle ropes", "medicine ball", "muscle up", "toes to bar", "heavy bag",
+  // Anything hanging from a bar. Muscle-ups and toes-to-bar were already here;
+  // pull-ups need the identical rig, so classifying them differently was
+  // incoherent — and the home kit has no bar to hang from.
+  "pull up", "chin up",
 ];
 
 /**

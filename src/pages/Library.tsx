@@ -576,7 +576,8 @@ export default function Library() {
             {missingStarterCount === 1 ? "" : "s"} available
           </div>
           <p className="mt-1 text-[13px] leading-snug text-[color:var(--color-muted)]">
-            Includes the gym pack — leg day, upper push/pull, full body.
+            Routines and benchmarks added since you last topped up your
+            library. Adding them won't touch anything you already have.
           </p>
           <Button
             variant="secondary"
