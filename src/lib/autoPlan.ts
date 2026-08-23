@@ -84,10 +84,29 @@ function openerRank(t: WorkoutTemplate): number {
   // shoulder-shaped it is. Rank it below everything else rather than
   // excluding it, so a library of only PM routines still fills the slot.
   if (/^pm ·|evening|night|wind.?down|bed/.test(hay)) return 4;
+  // Some routines only declare their timing in the notes — "Good in the
+  // evening." Matched with a much narrower pattern than the name check,
+  // because prose mentions the time of day in passing: "Straight out of bed"
+  // opens the 5-minute morning routine, and a bare /bed/ would demote it.
+  if (/\bevening\b|before bed|bedtime/i.test(t.notes ?? "")) return 4;
   if (/^am ·/.test(t.name.toLowerCase())) return 0;
   if (/shoulder|rotator|scap|cuff/.test(hay)) return 1;
   if (/stretch|mobility|wake|primer|posture/.test(hay)) return 2;
   return 3;
+}
+
+/**
+ * Does this routine actually work the shoulder?
+ *
+ * Read off the movements rather than the name, because the name is a label and
+ * the shoulder work is the entire point of the slot. "Stretch · 10 min Lower
+ * Body" reads like a fine morning stretch and contains no upper body at all.
+ */
+const SHOULDER_WORK =
+  /external rotation|internal rotation|pull.?apart|scapular|scap |shoulder|rotator|cuff|doorway chest|cross.?body|thread the needle|overhead reach|pulley|wall slide|cars/i;
+
+function hasShoulderWork(t: WorkoutTemplate): boolean {
+  return (t.plannedSets ?? []).some((s) => SHOULDER_WORK.test(s.exerciseName));
 }
 
 /**
@@ -206,18 +225,22 @@ export function autoPlanWeek(opts: {
 
   // ---- 1. Morning opener on every day that lacks one -------------------
   //
-  // Rank is a FILTER here, not an ordering. Every rank<=2 routine — AM-prefixed,
-  // shoulder work, or a stretch/mobility flow — is equally a "morning stretch /
-  // shoulder routine", so picking between them on rank alone just meant the
-  // same handful every week. Lower tiers are only reached if the better ones
-  // don't exist at all.
+  // The pool is defined by CONTENT, not by name. An earlier version ranked by
+  // naming convention and took everything that looked morning-ish, which let
+  // hip, ankle and lower-body flows take the slot — 29% of mornings ended up
+  // with no upper-body work at all. This slot exists to keep the shoulder
+  // working, so a routine qualifies by containing shoulder work.
+  //
+  // Rank now only answers "is this an evening routine?". Both fallbacks exist
+  // so a library without the ideal templates still gets its days filled.
   const ptTemplates = byKind.get("pt") ?? [];
-  const tiers = [
-    ptTemplates.filter((t) => openerRank(t) <= 2),
-    ptTemplates.filter((t) => openerRank(t) === 3),
-    ptTemplates.filter((t) => openerRank(t) === 4),
-  ];
-  const openerPool = tiers.find((tier) => tier.length > 0) ?? [];
+  const notEvening = ptTemplates.filter((t) => openerRank(t) < 4);
+  const shoulderRoutines = notEvening.filter(hasShoulderWork);
+  const openerPool = shoulderRoutines.length
+    ? shoulderRoutines
+    : notEvening.length
+    ? notEvening
+    : ptTemplates;
 
   // Two sources of variety, in order. Recency cycles through the pool so a
   // fortnight's worth of openers are all different. Once the pool is smaller
