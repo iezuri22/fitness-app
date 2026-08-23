@@ -123,6 +123,18 @@ function patternOf(t: WorkoutTemplate): string {
 }
 
 /**
+ * Deterministic per-week ordering key. Not random: the same name in the same
+ * week always sorts the same way, so re-planning a week is stable and the plan
+ * can be reasoned about, while the next week comes out in a different order.
+ */
+function weekJitter(name: string, weekKey: string): number {
+  const s = `${weekKey}:${name}`;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+/**
  * Order candidate days so the requested count spreads across the week instead
  * of clumping. For 2 sessions over 7 open days you want something like Mon/Thu,
  * not Mon/Tue.
@@ -193,16 +205,38 @@ export function autoPlanWeek(opts: {
   const shortfalls: AutoPlanResult["shortfalls"] = [];
 
   // ---- 1. Morning opener on every day that lacks one -------------------
-  const openers = [...(byKind.get("pt") ?? [])].sort(
-    (a, b) => openerRank(a) - openerRank(b) || a.name.localeCompare(b.name)
-  );
+  //
+  // Rank is a FILTER here, not an ordering. Every rank<=2 routine — AM-prefixed,
+  // shoulder work, or a stretch/mobility flow — is equally a "morning stretch /
+  // shoulder routine", so picking between them on rank alone just meant the
+  // same handful every week. Lower tiers are only reached if the better ones
+  // don't exist at all.
+  const ptTemplates = byKind.get("pt") ?? [];
+  const tiers = [
+    ptTemplates.filter((t) => openerRank(t) <= 2),
+    ptTemplates.filter((t) => openerRank(t) === 3),
+    ptTemplates.filter((t) => openerRank(t) === 4),
+  ];
+  const openerPool = tiers.find((tier) => tier.length > 0) ?? [];
+
+  // Two sources of variety, in order. Recency cycles through the pool so a
+  // fortnight's worth of openers are all different. Once the pool is smaller
+  // than the lookback — 14 acceptable routines against 7 days a week and a
+  // 14-day window — everything is "recent" and recency stops discriminating,
+  // so a per-week shuffle takes over. Keyed off the week's Monday, so it is
+  // stable if you re-plan the same week and different for the next one.
+  const weekKey = days[0] ?? "";
+  const openers = [...openerPool].sort((a, b) => {
+    const r = Number(recentNames.has(a.name)) - Number(recentNames.has(b.name));
+    if (r !== 0) return r;
+    return weekJitter(a.name, weekKey) - weekJitter(b.name, weekKey);
+  });
+
   const needOpener = plannable.filter((d) => !hasOpener.has(d));
   if (needOpener.length) {
     if (!openers.length) {
       shortfalls.push({ kind: "pt", wanted: needOpener.length, got: 0 });
     } else {
-      // Rotate so the week isn't the same routine seven times, but keep the
-      // best-ranked ones in front so most days get an AM shoulder session.
       needOpener.forEach((date, i) => {
         items.push({ date, template: openers[i % openers.length], kind: "pt", slot: "morning-pt" });
       });
