@@ -109,9 +109,11 @@ export default function Today() {
     const pt = ptSlot.active;
     const full = fullSlot.active;
     if (!pt && !full) return setFocusedSlot(null);
-    if (pt && !full) return setFocusedSlot("morning-pt");
-    if (!pt && full) return setFocusedSlot("strength");
-    setFocusedSlot((pt?.createdAt ?? 0) >= (full?.createdAt ?? 0) ? "morning-pt" : "strength");
+    // The morning routine is the opener — if it's still outstanding, it IS
+    // what's next. This used to compare createdAt, which meant the answer
+    // depended on the order the planner happened to write the two docs, and
+    // the planner writes the opener first, so the strength session won.
+    setFocusedSlot(pt ? "morning-pt" : "strength");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePtId, activeFullId]);
 

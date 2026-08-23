@@ -1,26 +1,35 @@
 /**
- * Auto-planner — fills a week from your weekly goals.
+ * Auto-planner — fills a week so every day has a morning opener and one main
+ * session.
  *
- * Rules it follows, roughly in the order a coach would:
- *   - Never touch a day that already has something scheduled or completed.
- *   - Gym days get spread out, never back-to-back if there's room.
- *   - Don't repeat the same session twice in a week while alternatives exist,
- *     and rotate away from what you did last week.
- *   - Strength sessions rotate through movement patterns (push / pull / legs)
- *     rather than stacking two leg days together.
- *   - PT is short enough to sit alongside anything, so it fills every remaining
- *     day rather than consuming one.
+ * The shape of a day is fixed:
+ *   1. A morning stretch / shoulder routine. Every day, no exceptions — it's
+ *      five to ten minutes and it's the part that keeps the shoulder working.
+ *   2. One main session, which is either a gym workout or a Cindy-style AMRAP.
+ *
+ * How the main session is chosen, in order:
+ *   - If a template names this weekday ("Gym · Wed — Quads + Core"), that's the
+ *     one. A named split IS the plan; the planner shouldn't second-guess it.
+ *   - Otherwise fall back to the weekly goals: gym sessions spread across the
+ *     week up to the gym target, then home strength up to its target.
+ *   - Every remaining day gets an AMRAP, so no day is left empty.
+ *
+ * It never overwrites. A day that already has a main session keeps it and only
+ * gains a morning opener if one is missing, which means you can re-run this
+ * after hand-picking a couple of days and it fills the gaps around them.
  *
  * Returns a plan for the caller to write; it performs no I/O itself so it can
- * be unit-reasoned about and previewed before anything is committed.
+ * be reasoned about and previewed before anything is committed.
  */
-import type { WorkoutTemplate } from "./types";
+import type { Workout, WorkoutTemplate } from "./types";
 import { kindOf, type WeeklyGoals, type WorkoutKind } from "./weeklyGoals";
 
 export interface PlannedItem {
   date: string;
   template: WorkoutTemplate;
   kind: WorkoutKind;
+  /** Which half of the day this fills. */
+  slot: "morning-pt" | "strength";
 }
 
 export interface AutoPlanResult {
@@ -29,20 +38,72 @@ export interface AutoPlanResult {
   shortfalls: { kind: WorkoutKind; wanted: number; got: number }[];
 }
 
+/** Kinds that can serve as a day's main session. PT never does — it's the opener. */
+const MAIN_KINDS: WorkoutKind[] = ["gym", "amrap", "home", "class"];
+
+const WEEKDAY_ABBR = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const WEEKDAY_FULL = [
+  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+];
+
 /**
- * When you only get 2 gym days a week, they should be the big sessions — not
- * an arms day and a sled finisher. Lower score = picked first.
+ * The weekday a template pins itself to, or null.
+ *
+ * Full names match anywhere — "Mobility Monday" can only mean Monday. The
+ * three-letter abbreviations are riskier, because "sun" and "sat" are ordinary
+ * words, so they only count in a name that uses the pack's structured format
+ * ("Gym · Sat — Posterior Chain"). That way a yoga routine called
+ * "Sun Salutation" doesn't quietly become a Sunday fixture.
+ *
+ * Matched as whole words throughout, so "Summer Shred" and "Band Monster Walk"
+ * pin to nothing.
+ */
+export function weekdayOf(t: Pick<WorkoutTemplate, "name">): number | null {
+  const words = t.name.toLowerCase().replace(/[^a-z]+/g, " ").trim().split(" ");
+  for (const w of words) {
+    const full = WEEKDAY_FULL.indexOf(w);
+    if (full >= 0) return full;
+  }
+  const structured = /[·—]/.test(t.name);
+  if (!structured) return null;
+  for (const w of words) {
+    const abbr = WEEKDAY_ABBR.indexOf(w);
+    if (abbr >= 0) return abbr;
+  }
+  return null;
+}
+
+/**
+ * Morning openers, best first. The ask is a "stretch / shoulder" routine, so
+ * the AM-prefixed ones win, then anything shoulder- or mobility-shaped, then
+ * any remaining PT session rather than leaving the slot empty.
+ */
+function openerRank(t: WorkoutTemplate): number {
+  const hay = `${t.name} ${t.focus}`.toLowerCase();
+  // An evening wind-down is the wrong way to start a day, however
+  // shoulder-shaped it is. Rank it below everything else rather than
+  // excluding it, so a library of only PM routines still fills the slot.
+  if (/^pm ·|evening|night|wind.?down|bed/.test(hay)) return 4;
+  if (/^am ·/.test(t.name.toLowerCase())) return 0;
+  if (/shoulder|rotator|scap|cuff/.test(hay)) return 1;
+  if (/stretch|mobility|wake|primer|posture/.test(hay)) return 2;
+  return 3;
+}
+
+/**
+ * When you only get a couple of gym days a week, they should be the big
+ * sessions — not an arms day and a sled finisher. Lower score = picked first.
  */
 const PRIORITY: [RegExp, number][] = [
   [/full body|power build|density/i, 0],
-  [/leg|quad|hinge|lower/i, 1],
+  [/leg|quad|hinge|lower|posterior/i, 1],
   [/push|chest|pressure/i, 1],
   [/pull|back|wingspan/i, 1],
   [/upper/i, 2],
   [/delt|shoulder/i, 3],
   [/arm|sleeve|bicep|tricep/i, 4],
   [/core|brace/i, 4],
-  [/conditioning|sled|carry|express/i, 5],
+  [/conditioning|sled|carry|express|boxing/i, 5],
 ];
 function priorityOf(t: WorkoutTemplate): number {
   const hay = `${t.name} ${t.focus}`;
@@ -53,7 +114,7 @@ function priorityOf(t: WorkoutTemplate): number {
 /** Rough movement bias, so two leg days don't land side by side. */
 function patternOf(t: WorkoutTemplate): string {
   const hay = `${t.name} ${t.focus}`.toLowerCase();
-  if (/leg|quad|hinge|glute|lower|squat/.test(hay)) return "legs";
+  if (/leg|quad|hinge|glute|lower|squat|posterior/.test(hay)) return "legs";
   if (/pull|back|row|wingspan/.test(hay)) return "pull";
   if (/push|chest|press|delt|shoulder/.test(hay)) return "push";
   if (/arm|sleeve|bicep|tricep/.test(hay)) return "arms";
@@ -80,8 +141,8 @@ function spread(days: string[], count: number): string[] {
 export function autoPlanWeek(opts: {
   /** Mon→Sun dates for the week being planned. */
   days: string[];
-  /** Dates that already have a workout — left untouched. */
-  busyDates: Set<string>;
+  /** What's already scheduled, so we fill around it instead of over it. */
+  existing: Pick<Workout, "date" | "title" | "focus" | "category" | "format" | "slot" | "status">[];
   goals: WeeklyGoals;
   templates: WorkoutTemplate[];
   /** Template names used recently, so the plan varies week to week. */
@@ -89,11 +150,25 @@ export function autoPlanWeek(opts: {
   /** Don't schedule anything before this date (usually today). */
   notBefore?: string;
 }): AutoPlanResult {
-  const { days, busyDates, goals, templates, recentNames = new Set(), notBefore } = opts;
+  const { days, existing, goals, templates, recentNames = new Set(), notBefore } = opts;
 
-  const openDays = days.filter(
-    (d) => !busyDates.has(d) && (!notBefore || d >= notBefore)
-  );
+  // A day is only "covered" by something that still counts — a skipped workout
+  // leaves the slot open again.
+  const hasOpener = new Set<string>();
+  const hasMain = new Set<string>();
+  // Sessions already on the week count against the weekly goals. Without this,
+  // re-planning on a Saturday sees "0 strength days assigned so far" and books
+  // another one, on top of the four you already did.
+  let existingStrength = 0;
+  for (const w of existing) {
+    if (w.status === "skipped") continue;
+    const k = kindOf(w);
+    if (k === "pt" || w.slot === "morning-pt") hasOpener.add(w.date);
+    else hasMain.add(w.date);
+    if (k === "gym" || k === "home") existingStrength++;
+  }
+
+  const plannable = days.filter((d) => !notBefore || d >= notBefore);
 
   const active = templates.filter((t) => !t.archived);
   const byKind = new Map<WorkoutKind, WorkoutTemplate[]>();
@@ -102,7 +177,6 @@ export function autoPlanWeek(opts: {
     if (!byKind.has(k)) byKind.set(k, []);
     byKind.get(k)!.push(t);
   }
-  // Prefer things not done recently; stable-sort by name so it's deterministic.
   for (const list of byKind.values()) {
     list.sort((a, b) => {
       // Not done recently wins first, then the meatier session, then name for
@@ -117,60 +191,106 @@ export function autoPlanWeek(opts: {
 
   const items: PlannedItem[] = [];
   const shortfalls: AutoPlanResult["shortfalls"] = [];
-  const taken = new Set<string>();
-  const usedNames = new Set<string>();
 
-  // Hard sessions first — they need the good days. PT fills gaps afterwards.
-  const order: WorkoutKind[] = ["gym", "amrap", "home"];
-  for (const kind of order) {
-    const want = goals[kind] ?? 0;
-    if (want <= 0) continue;
-    const pool = byKind.get(kind) ?? [];
-    if (!pool.length) {
-      shortfalls.push({ kind, wanted: want, got: 0 });
-      continue;
-    }
-    const free = openDays.filter((d) => !taken.has(d));
-    const slots = spread(free, want);
-    let placed = 0;
-    for (const date of slots) {
-      // Pick a template that varies the movement pattern from the day before.
-      const prev = items.find((i) => i.date === previousDay(date, days));
-      const prevPattern = prev ? patternOf(prev.template) : null;
-      const candidates = pool.filter((t) => !usedNames.has(t.name));
-      const list = candidates.length ? candidates : pool;
-      const pick =
-        list.find((t) => patternOf(t) !== prevPattern) ?? list[0];
-      if (!pick) break;
-      items.push({ date, template: pick, kind });
-      usedNames.add(pick.name);
-      taken.add(date);
-      placed++;
-    }
-    if (placed < want) shortfalls.push({ kind, wanted: want, got: placed });
-  }
-
-  // PT is short — it doubles up with whatever else is on that day.
-  const ptWant = goals.pt ?? 0;
-  const ptPool = byKind.get("pt") ?? [];
-  if (ptWant > 0) {
-    if (!ptPool.length) {
-      shortfalls.push({ kind: "pt", wanted: ptWant, got: 0 });
+  // ---- 1. Morning opener on every day that lacks one -------------------
+  const openers = [...(byKind.get("pt") ?? [])].sort(
+    (a, b) => openerRank(a) - openerRank(b) || a.name.localeCompare(b.name)
+  );
+  const needOpener = plannable.filter((d) => !hasOpener.has(d));
+  if (needOpener.length) {
+    if (!openers.length) {
+      shortfalls.push({ kind: "pt", wanted: needOpener.length, got: 0 });
     } else {
-      const ptDays = spread(openDays, Math.min(ptWant, openDays.length));
-      let i = 0;
-      for (const date of ptDays) {
-        const pick = ptPool[i % ptPool.length];
-        items.push({ date, template: pick, kind: "pt" });
-        i++;
-      }
-      if (ptDays.length < ptWant) {
-        shortfalls.push({ kind: "pt", wanted: ptWant, got: ptDays.length });
+      // Rotate so the week isn't the same routine seven times, but keep the
+      // best-ranked ones in front so most days get an AM shoulder session.
+      needOpener.forEach((date, i) => {
+        items.push({ date, template: openers[i % openers.length], kind: "pt", slot: "morning-pt" });
+      });
+    }
+  }
+
+  // ---- 2. One main session on every day that lacks one -----------------
+  const needMain = plannable.filter((d) => !hasMain.has(d));
+  const usedNames = new Set<string>();
+  const assigned = new Map<string, { template: WorkoutTemplate; kind: WorkoutKind }>();
+
+  const mainPool = MAIN_KINDS.flatMap((k) => (byKind.get(k) ?? []).map((t) => ({ t, k })));
+
+  // 2a. Weekday-pinned templates win outright.
+  for (const date of needMain) {
+    const weekday = days.indexOf(date);
+    if (weekday < 0) continue;
+    const pinned = mainPool.find(({ t }) => weekdayOf(t) === weekday && !usedNames.has(t.name));
+    if (pinned) {
+      assigned.set(date, { template: pinned.t, kind: pinned.k });
+      usedNames.add(pinned.t.name);
+    }
+  }
+
+  // 2b. Goal-driven strength days across whatever's left.
+  //
+  // Gym and home targets are pooled into one "lifting days" number and drawn
+  // gym-first. Treating them as separate quotas meant a leftover home target
+  // would plant a full strength session on the one day still free — which,
+  // after a weekday-pinned split has taken Mon-Sat, is Sunday. Sunday should
+  // be the easy day, and under 2c it becomes one.
+  const strengthWant = (goals.gym ?? 0) + (goals.home ?? 0);
+  const alreadyStrength =
+    existingStrength +
+    [...assigned.values()].filter((a) => a.kind === "gym" || a.kind === "home").length;
+  const remaining = strengthWant - alreadyStrength;
+  if (remaining > 0) {
+    const pool = [...(byKind.get("gym") ?? []), ...(byKind.get("home") ?? [])].filter(
+      (t) => weekdayOf(t) === null
+    );
+    const free = needMain.filter((d) => !assigned.has(d));
+    if (!pool.length) {
+      shortfalls.push({ kind: "gym", wanted: strengthWant, got: alreadyStrength });
+    } else {
+      for (const date of spread(free, Math.min(remaining, free.length))) {
+        const prev = assigned.get(previousDay(date, days) ?? "");
+        const prevPattern = prev ? patternOf(prev.template) : null;
+        const fresh = pool.filter((t) => !usedNames.has(t.name));
+        const list = fresh.length ? fresh : pool;
+        const pick = list.find((t) => patternOf(t) !== prevPattern) ?? list[0];
+        if (!pick) break;
+        const k = kindOf({ title: pick.name, focus: pick.focus, category: pick.category, format: pick.format });
+        assigned.set(date, { template: pick, kind: k });
+        usedNames.add(pick.name);
       }
     }
   }
 
-  items.sort((a, b) => a.date.localeCompare(b.date));
+  // 2c. Everything still empty becomes an AMRAP — that's the "or a Cindy-style
+  //     workout" half of the rule, and it's what stops a day being blank.
+  const amrapPool = (byKind.get("amrap") ?? []).filter((t) => weekdayOf(t) === null);
+  const stillEmpty = needMain.filter((d) => !assigned.has(d));
+  if (stillEmpty.length) {
+    if (!amrapPool.length) {
+      shortfalls.push({ kind: "amrap", wanted: stillEmpty.length, got: 0 });
+    } else {
+      const isEasy = (t: WorkoutTemplate) =>
+        /easy|recovery|gentle|light/i.test(`${t.name} ${t.focus}`);
+      stillEmpty.forEach((date, i) => {
+        const fresh = amrapPool.filter((t) => !usedNames.has(t.name));
+        const list = fresh.length ? fresh : amrapPool;
+        // The last day of the week is the one you most need to come back from,
+        // so give it an easy AMRAP when the library has one.
+        const lastDay = date === days[days.length - 1];
+        const pick =
+          (lastDay ? list.find(isEasy) : undefined) ??
+          (fresh.length ? list[0] : list[i % list.length]);
+        assigned.set(date, { template: pick, kind: "amrap" });
+        usedNames.add(pick.name);
+      });
+    }
+  }
+
+  for (const [date, a] of assigned) {
+    items.push({ date, template: a.template, kind: a.kind, slot: "strength" });
+  }
+
+  items.sort((a, b) => a.date.localeCompare(b.date) || (a.slot === "morning-pt" ? -1 : 1));
   return { items, shortfalls };
 }
 

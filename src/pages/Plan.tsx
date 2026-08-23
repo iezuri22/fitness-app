@@ -20,6 +20,7 @@ import {
   SheetHeader,
 } from "../components/ui";
 import { autoPlanWeek } from "../lib/autoPlan";
+import { Segmented } from "../components/ui";
 import type { WorkoutTemplate } from "../lib/types";
 import { todayStr, weekRange } from "../lib/dates";
 import { estimatePlannedMinutes, formatMinutes } from "../lib/timeEstimate";
@@ -28,6 +29,7 @@ import {
   DEFAULT_GOALS,
   KINDS,
   countByKind,
+  kindOf,
   plannedByKind,
   type WeeklyGoals,
   type WorkoutKind,
@@ -56,6 +58,7 @@ export default function Plan() {
   const [planning, setPlanning] = useState(false);
   const [planMsg, setPlanMsg] = useState<string | null>(null);
   const [moving, setMoving] = useState<Workout | null>(null);
+  const [switching, setSwitching] = useState<Workout | null>(null);
   // Goals are a reference number you set once, not something you read every
   // visit — collapsed by default so the week itself is what you land on.
   const [goalsOpen, setGoalsOpen] = useState(false);
@@ -106,34 +109,39 @@ export default function Plan() {
     setPlanning(true);
     setPlanMsg(null);
     try {
-      const busy = new Set((workouts ?? []).map((w) => w.date));
       // Look back a fortnight so the plan doesn't repeat last week's sessions.
       const priorStart = addDays(start, -14);
       const prior = await listWorkoutsInRange(user.uid, priorStart, addDays(start, -1));
       const { items, shortfalls } = autoPlanWeek({
         days,
-        busyDates: busy,
+        existing: workouts ?? [],
         goals,
         templates,
         recentNames: new Set(prior.map((w) => w.title)),
         // Don't back-fill days that have already passed.
         notBefore: weekOffset === 0 ? today : undefined,
       });
+      const missed = shortfalls
+        .filter((s) => s.got < s.wanted)
+        .map((s) => `${s.kind} (${s.got}/${s.wanted})`);
       if (!items.length) {
+        // Nothing scheduled means one of two very different things, and saying
+        // the wrong one leaves a user with an empty library staring at seven
+        // blank days being told the week is full.
         setPlanMsg(
-          busy.size >= days.length
-            ? "Every day already has something scheduled."
-            : "Nothing to schedule — check your goals and that your library has workouts."
+          missed.length
+            ? `Nothing to schedule — your library is missing: ${missed.join(", ")}.`
+            : "Every day already has a morning routine and a main session."
         );
         return;
       }
       for (const item of items) {
-        await startWorkoutFromTemplate(user.uid, item.template, { date: item.date });
+        await startWorkoutFromTemplate(user.uid, item.template, {
+          date: item.date,
+          slot: item.slot,
+        });
       }
       await load();
-      const missed = shortfalls
-        .filter((s) => s.got < s.wanted)
-        .map((s) => `${s.kind} (${s.got}/${s.wanted})`);
       setPlanMsg(
         `Scheduled ${items.length} session${items.length === 1 ? "" : "s"}.` +
           (missed.length ? ` Couldn't fill: ${missed.join(", ")}.` : "")
@@ -154,6 +162,24 @@ export default function Plan() {
       (prev ?? []).map((x) => (x.id === w.id ? { ...x, date: toDate } : x))
     );
     await saveWorkout(user.uid, w.id, { date: toDate });
+  }
+
+  /**
+   * Swap a day's main session for a different one, keeping its date and slot.
+   * Implemented as delete-then-create because a workout's plannedSets are a
+   * snapshot of the template taken at scheduling time — there's no in-place
+   * "become this other template" that wouldn't just be the same two writes.
+   */
+  async function switchWorkout(w: Workout, template: WorkoutTemplate) {
+    if (!user) return;
+    setSwitching(null);
+    setWorkouts((prev) => (prev ?? []).filter((x) => x.id !== w.id));
+    await deleteWorkout(user.uid, w.id);
+    await startWorkoutFromTemplate(user.uid, template, {
+      date: w.date,
+      slot: w.slot ?? "strength",
+    });
+    await load();
   }
 
   async function updateGoal(kind: WorkoutKind, delta: number) {
@@ -328,6 +354,7 @@ export default function Plan() {
             workouts={byDate.get(date) ?? []}
             onRemove={removeWorkout}
             onMove={setMoving}
+            onSwitch={setSwitching}
             onOpen={(w) => nav(detailHref(w))}
           />
         ))}
@@ -345,6 +372,7 @@ export default function Plan() {
                 workouts={byDate.get(date) ?? []}
                 onRemove={removeWorkout}
                 onMove={setMoving}
+                onSwitch={setSwitching}
                 onOpen={(w) => nav(detailHref(w))}
               />
             ))}
@@ -365,7 +393,95 @@ export default function Plan() {
           onClose={() => setMoving(null)}
         />
       )}
+
+      {switching && (
+        <SwitchSheet
+          workout={switching}
+          templates={templates}
+          onPick={(t) => void switchWorkout(switching, t)}
+          onClose={() => setSwitching(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Bottom sheet for swapping a day's main session.
+ *
+ * The two tabs are the choice the user actually makes — a gym session or a
+ * Cindy-style AMRAP — rather than the app's five internal kinds. Home strength
+ * sits under "Gym" because from the planner's point of view it's the same
+ * decision: lift, or do conditioning.
+ */
+function SwitchSheet({
+  workout,
+  templates,
+  onPick,
+  onClose,
+}: {
+  workout: Workout;
+  templates: WorkoutTemplate[];
+  onPick: (t: WorkoutTemplate) => void;
+  onClose: () => void;
+}) {
+  const current = kindOf(workout);
+  const [tab, setTab] = useState<"gym" | "amrap">(current === "amrap" ? "amrap" : "gym");
+
+  const options = useMemo(() => {
+    const wanted = (t: WorkoutTemplate) => {
+      const k = kindOf({ title: t.name, focus: t.focus, category: t.category, format: t.format });
+      return tab === "amrap" ? k === "amrap" : k === "gym" || k === "home";
+    };
+    return templates
+      .filter((t) => !t.archived && wanted(t))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [templates, tab]);
+
+  return (
+    <Sheet onClose={onClose} label={`Switch ${workout.title}`}>
+      <SheetHeader title="Switch session" onCancel={onClose} />
+      <div className="flex min-h-0 flex-col overflow-hidden px-4 pb-6">
+        {/* shrink-0: this sits in a flex column whose list child grows, and
+            without it the flexbox squashes the line to a few pixels tall. */}
+        <p className="mb-3 shrink-0 truncate text-[13px] text-[color:var(--color-muted)]">
+          {prettyDay(workout.date)} · currently {workout.title}
+        </p>
+        <div className="shrink-0">
+          <Segmented<"gym" | "amrap">
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "gym", label: "Gym" },
+              { value: "amrap", label: "Cindy style" },
+            ]}
+          />
+        </div>
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+          {options.length === 0 ? (
+            <p className="py-8 text-center text-[15px] text-[color:var(--color-muted)]">
+              No {tab === "amrap" ? "AMRAP" : "gym"} routines in your library yet.
+            </p>
+          ) : (
+            <Group>
+              {options.map((t) => {
+                const isCurrent = t.name === workout.title;
+                return (
+                  <Row
+                    key={t.id}
+                    title={t.name}
+                    subtitle={t.focus}
+                    value={isCurrent ? "Current" : formatMinutes(estimatePlannedMinutes(t))}
+                    onClick={isCurrent ? undefined : () => onPick(t)}
+                    trailing={isCurrent ? <CheckMark /> : undefined}
+                  />
+                );
+              })}
+            </Group>
+          )}
+        </div>
+      </div>
+    </Sheet>
   );
 }
 
@@ -432,6 +548,7 @@ function DayRow({
   workouts,
   onRemove,
   onMove,
+  onSwitch,
   onOpen,
 }: {
   dayName: string;
@@ -441,6 +558,7 @@ function DayRow({
   workouts: Workout[];
   onRemove: (w: Workout) => void;
   onMove: (w: Workout) => void;
+  onSwitch: (w: Workout) => void;
   onOpen: (w: Workout) => void;
 }) {
   return (
@@ -475,7 +593,14 @@ function DayRow({
       ) : (
         <Group>
           {workouts.map((w) => (
-            <PlannedRow key={w.id} workout={w} onRemove={onRemove} onMove={onMove} onOpen={onOpen} />
+            <PlannedRow
+              key={w.id}
+              workout={w}
+              onRemove={onRemove}
+              onMove={onMove}
+              onSwitch={onSwitch}
+              onOpen={onOpen}
+            />
           ))}
         </Group>
       )}
@@ -487,15 +612,25 @@ function PlannedRow({
   workout: w,
   onRemove,
   onMove,
+  onSwitch,
   onOpen,
 }: {
   workout: Workout;
   onRemove: (w: Workout) => void;
   onMove: (w: Workout) => void;
+  onSwitch: (w: Workout) => void;
   onOpen: (w: Workout) => void;
 }) {
-  const isPT = w.slot === "morning-pt" || w.category === "PT Only";
+  // Key off the slot, which is what the planner and the switcher both set.
+  // Falling back to category made a PT-categorised AMRAP scheduled as a main
+  // session look like the fixed morning opener — no switch button, wrong dot.
+  // Category is only consulted for legacy docs written before slots existed.
+  const isPT = w.slot ? w.slot === "morning-pt" : w.category === "PT Only";
   const done = w.status === "completed";
+  // Switching throws the old doc away, so only offer it while there's nothing
+  // to throw away. Once a set is logged, Remove (which confirms) is the way out.
+  const untouched =
+    w.status === "planned" && !w.plannedSets.some((s) => s.completedAt);
   const mins = estimatePlannedMinutes(w);
   return (
     <Row
@@ -518,6 +653,28 @@ function PlannedRow({
           // Move / remove stay on the row rather than behind a menu — the
           // whole point of this screen is shuffling the week around.
           <span className="flex shrink-0 items-center">
+            {/* Swapping gym for Cindy-style is the edit you make most often,
+                so it sits on the row rather than behind the day's Add link.
+                The morning routine isn't swappable — it's the fixed opener. */}
+            {!isPT && untouched && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSwitch(w);
+                }}
+                aria-label={`Switch ${w.title} for a different session`}
+                className="grid size-9 place-items-center text-[color:var(--color-muted-2)] active:text-white"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 3 21 3 21 8" />
+                  <line x1="4" y1="20" x2="21" y2="3" />
+                  <polyline points="21 16 21 21 16 21" />
+                  <line x1="15" y1="15" x2="21" y2="21" />
+                  <line x1="4" y1="4" x2="9" y2="9" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {

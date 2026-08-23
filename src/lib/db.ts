@@ -576,8 +576,13 @@ export async function startWorkoutFromTemplate(
   }));
   // Default slot: PT Only → morning-pt, Full → strength. Callers can override
   // (e.g. running a PT template as a second session later in the day).
+  // An AMRAP is conditioning, so it belongs in the main slot even when the
+  // template is filed under PT — "AMRAP · Recovery 25" is a recovery session,
+  // not a morning stretch routine.
   const defaultSlot: Workout["slot"] =
-    template.category === "PT Only" ? "morning-pt" : "strength";
+    template.category === "PT Only" && template.format !== "amrap"
+      ? "morning-pt"
+      : "strength";
   const slot = opts.slot ?? defaultSlot;
   // Create as "planned" — the user hasn't pressed Start yet. Today's FocusPill
   // shows "Ready to go" for planned docs; tapping Start flips to in_progress.
