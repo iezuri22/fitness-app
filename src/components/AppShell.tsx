@@ -2,6 +2,9 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useOnboardingCheck } from "../hooks/useOnboardingCheck";
 import { useBackfillGifs } from "../hooks/useBackfillGifs";
+import { useScrollRestoration } from "../hooks/useScrollRestoration";
+import { useBack } from "../hooks/useBack";
+import SwipeBack from "./SwipeBack";
 import { PageSkeleton } from "./ui";
 
 /**
@@ -30,6 +33,8 @@ export default function AppShell() {
   const location = useLocation();
   const { needsOnboarding } = useOnboardingCheck();
   useBackfillGifs();
+  useScrollRestoration();
+  const goBack = useBack();
 
   if (needsOnboarding === null) {
     return (
@@ -71,9 +76,14 @@ export default function AppShell() {
         </NavLink>
       </header>
 
-      {/* Keyed by path so each tab switch cross-fades rather than snapping. */}
+      {/* Keyed by path so each tab switch cross-fades rather than snapping.
+          SwipeBack sits inside <main> deliberately: it transforms its own
+          subtree, and a transform re-parents any `position: fixed` descendant
+          to it. Wrapping the shell instead would drag the tab bar along. */}
       <main key={location.pathname} className="animate-fade-in flex-1 px-4 pb-8 pt-4">
-        <Outlet />
+        <SwipeBack onBack={() => goBack("/")}>
+          <Outlet />
+        </SwipeBack>
       </main>
 
       <nav

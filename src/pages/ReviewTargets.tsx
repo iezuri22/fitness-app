@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useBack } from "../hooks/useBack";
 import { useAuth } from "../hooks/useAuth";
 import { getWorkout, listWorkouts, saveWorkout } from "../lib/db";
 import {
@@ -38,6 +39,7 @@ export default function ReviewTargets() {
   const [starting, setStarting] = useState(false);
 
   const backTo = searchParams.get("from") || "/";
+  const back = useBack();
   const runnerHref = `/workout/${workoutId}?from=${encodeURIComponent(backTo)}`;
 
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function ReviewTargets() {
         subtitle={`${changedCount} change${changedCount === 1 ? "" : "s"} from last time`}
         action={
           <button
-            onClick={() => nav(backTo)}
+            onClick={() => back(backTo)}
             className="text-[16px] text-[color:var(--color-accent)] active:opacity-60"
           >
             Cancel

@@ -5,6 +5,7 @@ import type {
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { canGoBack, useBack } from "../hooks/useBack";
 
 /* ==========================================================================
    Primitives
@@ -551,6 +552,44 @@ export function EmptyState({
       )}
       {action && <div className="mt-5">{action}</div>}
     </div>
+  );
+}
+
+/* -------------------------------- Back ---------------------------------- */
+
+/**
+ * The back chevron, for every screen that isn't a tab root.
+ *
+ * Pops real history, so it returns you to the page you were actually on rather
+ * than to a hard-coded guess. Those guesses were the bug: opening an exercise
+ * from inside a workout and tapping back landed you on the Exercises tab.
+ *
+ * The label follows suit. When there's history to pop, the destination is
+ * whatever you came from, so it says "Back" — naming a specific page would be
+ * a guess, and half the time the wrong one. `label` is shown only when there
+ * is nothing to pop and the fallback really is where you'll end up.
+ */
+export function BackLink({
+  fallback,
+  label = "Back",
+  className = "",
+}: {
+  fallback: string;
+  label?: string;
+  className?: string;
+}) {
+  const goBack = useBack();
+  return (
+    <button
+      type="button"
+      onClick={() => goBack(fallback)}
+      className={`-ml-1 inline-flex items-center gap-1 text-[16px] text-[color:var(--color-accent)] active:opacity-60 ${className}`}
+    >
+      <svg width="8" height="13" viewBox="0 0 8 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="6.5 1.5 1.5 6.5 6.5 11.5" />
+      </svg>
+      {canGoBack() ? "Back" : label}
+    </button>
   );
 }
 

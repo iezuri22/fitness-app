@@ -2,15 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { listExercises } from "../lib/db";
-import {
-  Card,
-  Group,
-  PageHeader,
-  PageSkeleton,
-  Row,
-  SectionHeader,
-  Tag,
-} from "../components/ui";
+import { BackLink, Card, Group, PageHeader, PageSkeleton, Row, SectionHeader, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
 import { BODY_PARTS, bodyPartsForName, type BodyPart } from "../lib/generateWorkout";
 import { BODY_PART_GUIDE } from "../lib/bodyPartGuide";
@@ -88,15 +80,7 @@ function BodyPartDetail({ part }: { part: BodyPart }) {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/body"
-        className="-ml-1 inline-flex items-center gap-1 text-[16px] text-[color:var(--color-accent)] active:opacity-60"
-      >
-        <svg width="8" height="13" viewBox="0 0 8 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6.5 1.5 1.5 6.5 6.5 11.5" />
-        </svg>
-        Body
-      </Link>
+      <BackLink fallback="/body" label="Body" />
 
       <PageHeader title={label} subtitle={guide.patterns.join(" · ")} />
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
   getExerciseHistory,
@@ -13,15 +13,7 @@ import {
 import { findGifForName } from "../lib/exerciseGifs";
 import { findInstructionsForName } from "../lib/exerciseInstructions";
 import type { Exercise } from "../lib/types";
-import {
-  Button,
-  Card,
-  Group,
-  PageSkeleton,
-  Row,
-  SectionHeader,
-  Tag,
-} from "../components/ui";
+import { BackLink, Button, Card, Group, PageSkeleton, Row, SectionHeader, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
 import { prettyDate } from "../lib/dates";
 
@@ -108,15 +100,7 @@ export default function ExerciseDetail() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/exercises"
-        className="-ml-1 inline-flex items-center gap-1 text-[16px] text-[color:var(--color-accent)] active:opacity-60"
-      >
-        <svg width="8" height="13" viewBox="0 0 8 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6.5 1.5 1.5 6.5 6.5 11.5" />
-        </svg>
-        Exercises
-      </Link>
+      <BackLink fallback="/exercises" label="Exercises" />
 
       <ExerciseGif name={ex.name} gifUrl={ex.gifUrl} size="hero" />
 

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useBack } from "../hooks/useBack";
+import { useScrollRestoration } from "../hooks/useScrollRestoration";
 import { useAuth } from "../hooks/useAuth";
 import { getAmrapHistory, getWorkout, listExercises, saveWorkout, type AmrapResult } from "../lib/db";
 import { Button, Card, Overlay, PageSkeleton, ProgressBar, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
+import SwipeBack from "../components/SwipeBack";
 import RestTimer from "../components/RestTimer";
 import IntervalTimer from "../components/IntervalTimer";
 import ExercisePicker from "../components/ExercisePicker";
@@ -26,6 +29,11 @@ export default function WorkoutPage() {
   const [searchParams] = useSearchParams();
   // Where "back" goes. Set by whoever linked here; Today is the sane default.
   const backTo = searchParams.get("from") || "/";
+  // Prefer unwinding real history; `backTo` only covers a cold deep link.
+  const back = useBack();
+  const goBack = () => back(backTo);
+  // This route lives outside AppShell, so it wires up its own restoration.
+  useScrollRestoration();
   const { user } = useAuth();
   const nav = useNavigate();
   const [workout, setWorkout] = useState<Workout | null>(null);
@@ -103,14 +111,14 @@ export default function WorkoutPage() {
 
   if (workout.format === "amrap" && nativeView) {
     return (
-      <>
+      <SwipeBack onBack={goBack}>
         <AmrapRunner
           workout={workout}
           history={amrapHistory}
           gifByExerciseId={gifByExerciseId}
           onManage={() => setManageOpen(true)}
           onViewAsList={() => setViewMode("list")}
-          backTo={backTo}
+          onBack={goBack}
           onFinish={async (rounds, extra) => {
             if (!user) return;
             await saveWorkout(user.uid, workout.id, {
@@ -132,13 +140,13 @@ export default function WorkoutPage() {
             onClose={() => setManageOpen(false)}
           />
         )}
-      </>
+      </SwipeBack>
     );
   }
 
   if (workout.format === "flow" && nativeView) {
     return (
-      <>
+      <SwipeBack onBack={goBack}>
         <FlowRunner
           workout={workout}
           gifByExerciseId={gifByExerciseId}
@@ -152,7 +160,7 @@ export default function WorkoutPage() {
           onFinish={() => void finishWorkout()}
           onManage={() => setManageOpen(true)}
           onViewAsList={() => setViewMode("list")}
-          backTo={backTo}
+          onBack={goBack}
         />
         {manageOpen && (
           <ManagePlanSheet
@@ -163,7 +171,7 @@ export default function WorkoutPage() {
             onClose={() => setManageOpen(false)}
           />
         )}
-      </>
+      </SwipeBack>
     );
   }
 
@@ -271,6 +279,7 @@ export default function WorkoutPage() {
   }
 
   return (
+    <SwipeBack onBack={goBack}>
     <div className="min-h-full max-w-xl mx-auto flex flex-col">
       {/* Header */}
       <header
@@ -279,7 +288,7 @@ export default function WorkoutPage() {
       >
         <div className="mb-2 flex items-center justify-between gap-3">
           <button
-            onClick={() => nav(backTo)}
+            onClick={goBack}
             aria-label="Back"
             className="-ml-1 flex shrink-0 items-center text-[color:var(--color-accent)] active:opacity-60"
           >
@@ -439,6 +448,7 @@ export default function WorkoutPage() {
         />
       )}
     </div>
+    </SwipeBack>
   );
 }
 

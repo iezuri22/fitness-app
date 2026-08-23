@@ -1,16 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { deleteWorkout, getWorkout, listExercises, saveWorkout } from "../lib/db";
 import type { Exercise, PlannedSet, Workout } from "../lib/types";
-import {
-  Button,
-  Card,
-  Group,
-  PageHeader,
-  PageSkeleton,
-  Row,
-} from "../components/ui";
+import { BackLink, Button, Card, Group, PageHeader, PageSkeleton, Row } from "../components/ui";
 import { prettyDate } from "../lib/dates";
 import PlanEditor from "../components/PlanEditor";
 
@@ -68,6 +61,8 @@ export default function WorkoutDetail() {
   async function onDelete() {
     if (!user || !workout) return;
     await deleteWorkout(user.uid, workout.id);
+    // Deleting can't just pop: the entry we'd return to may be this same
+    // workout further down the stack. Replace with a real destination.
     nav(backTo, { replace: true });
   }
 
@@ -81,15 +76,7 @@ export default function WorkoutDetail() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to={backTo}
-        className="-ml-1 inline-flex items-center gap-1 text-[16px] text-[color:var(--color-accent)] active:opacity-60"
-      >
-        <svg width="8" height="13" viewBox="0 0 8 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6.5 1.5 1.5 6.5 6.5 11.5" />
-        </svg>
-        {backLabel}
-      </Link>
+      <BackLink fallback={backTo} label={backLabel} />
 
       <PageHeader
         title={workout.title}

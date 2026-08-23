@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "./ui";
 import ExerciseGif from "./ExerciseGif";
 import type { AmrapResult } from "../lib/db";
@@ -23,7 +22,7 @@ export default function AmrapRunner({
   onFinish,
   onManage,
   onViewAsList,
-  backTo,
+  onBack,
 }: {
   workout: Workout;
   history: AmrapResult[];
@@ -33,10 +32,9 @@ export default function AmrapRunner({
   onManage: () => void;
   /** Drop to the plain set table. */
   onViewAsList: () => void;
-  /** Where the back chevron returns to. */
-  backTo: string;
+  /** Invoked by the back chevron. Pops history where there is any. */
+  onBack: () => void;
 }) {
-  const nav = useNavigate();
   const capSec = (workout.capMinutes ?? 20) * 60;
 
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -105,7 +103,7 @@ export default function AmrapRunner({
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 10px)" }}
       >
         <button
-          onClick={() => nav(backTo)}
+          onClick={onBack}
           aria-label="Back"
           className="-ml-1 flex shrink-0 items-center text-[color:var(--color-accent)] active:opacity-60"
         >
