@@ -31,6 +31,7 @@ import { GYM_EXERCISES } from "./gymExercises";
 import { findGifForName } from "./exerciseGifs";
 import { normalizeGoals, type WeeklyGoals } from "./weeklyGoals";
 import { slotOrder } from "./slots";
+import type { TrainingSignal } from "./trainingSignals";
 
 // Path helpers
 const userRoot = (uid: string) => `users/${uid}`;
@@ -441,6 +442,63 @@ export async function listSupplementLogs(
   } catch {
     return {};
   }
+}
+
+// ---------- Training signals ----------
+
+/**
+ * The log of sessions you threw away.
+ *
+ * Kept as one capped array in a single document rather than a collection: it's
+ * read on every plan and written rarely, so one read beats N, and nothing here
+ * is worth paginating. Oldest entries fall off the front — a rejection from
+ * four months ago shouldn't still be shaping next week.
+ */
+const MAX_SIGNALS = 200;
+
+const signalsDoc = (uid: string) => doc(db, `${userRoot(uid)}/meta/signals`);
+
+export async function getTrainingSignals(uid: string): Promise<TrainingSignal[]> {
+  return cachedRead(cacheKey.signals(uid), async () => {
+    const snap = await getDoc(signalsDoc(uid));
+    const raw = snap.exists() ? (snap.data().entries as unknown) : null;
+    return Array.isArray(raw) ? (raw as TrainingSignal[]) : [];
+  });
+}
+
+/** Append one signal. Safe to call from a delete handler — never throws. */
+export async function recordTrainingSignal(
+  uid: string,
+  signal: TrainingSignal
+): Promise<void> {
+  try {
+    const existing = await getTrainingSignals(uid);
+    const entries = [...existing, signal].slice(-MAX_SIGNALS);
+    await setDoc(signalsDoc(uid), { entries, updatedAt: Date.now() });
+    invalidate(cacheKey.signals(uid));
+  } catch (e) {
+    // Losing a preference signal must never break the delete the user asked
+    // for. Worst case the planner offers that routine again.
+    console.error("[db] recordTrainingSignal failed:", e);
+  }
+}
+
+/**
+ * Forget every opinion recorded about one routine.
+ *
+ * The escape hatch for the learning. A planner that quietly stops offering
+ * something, with no way to see it or undo it, is worse than one that doesn't
+ * learn at all — so the Plan page lists what it has stopped offering and this
+ * is the button behind it.
+ */
+export async function clearTrainingSignals(
+  uid: string,
+  templateName: string
+): Promise<void> {
+  const existing = await getTrainingSignals(uid);
+  const entries = existing.filter((s) => s.templateName !== templateName);
+  await setDoc(signalsDoc(uid), { entries, updatedAt: Date.now() });
+  invalidate(cacheKey.signals(uid));
 }
 
 // ---------- AMRAP scores ----------

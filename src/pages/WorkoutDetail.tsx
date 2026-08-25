@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { deleteWorkout, getWorkout, listExercises, saveWorkout } from "../lib/db";
+import {
+  deleteWorkout,
+  getWorkout,
+  listExercises,
+  recordTrainingSignal,
+  saveWorkout,
+} from "../lib/db";
+import { signalFor } from "../lib/trainingSignals";
 import type { Exercise, PlannedSet, Workout } from "../lib/types";
 import { BackLink, Button, Card, Group, PageHeader, PageSkeleton, Row } from "../components/ui";
 import { prettyDate } from "../lib/dates";
@@ -60,6 +67,9 @@ export default function WorkoutDetail() {
 
   async function onDelete() {
     if (!user || !workout) return;
+    if (workout.status === "planned") {
+      await recordTrainingSignal(user.uid, signalFor(workout, "deleted"));
+    }
     await deleteWorkout(user.uid, workout.id);
     // Deleting can't just pop: the entry we'd return to may be this same
     // workout further down the stack. Replace with a real destination.

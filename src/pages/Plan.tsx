@@ -3,7 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
   deleteWorkout,
+  clearTrainingSignals,
+  getTrainingSignals,
   getWeeklyGoals,
+  recordTrainingSignal,
+  saveWorkout as saveWorkoutDoc,
   listTemplates,
   listWorkoutsInRange,
   saveWeeklyGoals,
@@ -21,11 +25,18 @@ import {
 } from "../components/ui";
 import { autoPlanWeek } from "../lib/autoPlan";
 import { isMorningSlot } from "../lib/slots";
+import {
+  NO_PREFERENCES,
+  derivePreferences,
+  signalFor,
+  type Preferences,
+} from "../lib/trainingSignals";
+import { applyTargets, suggestTargets } from "../lib/progression";
 import { Segmented } from "../components/ui";
 import type { WorkoutTemplate } from "../lib/types";
 import { todayStr, weekRange } from "../lib/dates";
 import { estimatePlannedMinutes, formatMinutes } from "../lib/timeEstimate";
-import type { Workout } from "../lib/types";
+import type { PlannedSet, Workout } from "../lib/types";
 import {
   DEFAULT_GOALS,
   KINDS,
@@ -60,6 +71,8 @@ export default function Plan() {
   const [planMsg, setPlanMsg] = useState<string | null>(null);
   const [moving, setMoving] = useState<Workout | null>(null);
   const [switching, setSwitching] = useState<Workout | null>(null);
+  const [prefs, setPrefs] = useState<Preferences>(NO_PREFERENCES);
+  const [showLearned, setShowLearned] = useState(false);
   // Goals are a reference number you set once, not something you read every
   // visit — collapsed by default so the week itself is what you land on.
   const [goalsOpen, setGoalsOpen] = useState(false);
@@ -94,15 +107,25 @@ export default function Plan() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [ws, g, t] = await Promise.all([
+    const [ws, g, t, history, signals] = await Promise.all([
       listWorkoutsInRange(user.uid, start, end),
       getWeeklyGoals(user.uid),
       listTemplates(user.uid),
+      listWorkoutsInRange(user.uid, addDays(start, -56), addDays(start, -1)),
+      getTrainingSignals(user.uid),
     ]);
     setWorkouts(ws);
     setGoals(g);
     setTemplates(t);
-  }, [user, start, end]);
+    setPrefs(derivePreferences({ workouts: history, signals, templates: t, today }));
+  }, [user, start, end, today]);
+
+  /** Forget every opinion about one routine, so it's offered again. */
+  async function offerAgain(name: string) {
+    if (!user) return;
+    await clearTrainingSignals(user.uid, name);
+    await load();
+  }
 
   /** Fill every empty day from the weekly goals. Never overwrites. */
   async function planWeek() {
@@ -110,9 +133,24 @@ export default function Plan() {
     setPlanning(true);
     setPlanMsg(null);
     try {
-      // Look back a fortnight so the plan doesn't repeat last week's sessions.
-      const priorStart = addDays(start, -14);
-      const prior = await listWorkoutsInRange(user.uid, priorStart, addDays(start, -1));
+      // Two different lookbacks. A fortnight decides what NOT to repeat; two
+      // months is what the preferences are read from, because an opinion needs
+      // more than one week of evidence behind it.
+      const prior = await listWorkoutsInRange(
+        user.uid,
+        addDays(start, -14),
+        addDays(start, -1)
+      );
+      const [history, signals] = await Promise.all([
+        listWorkoutsInRange(user.uid, addDays(start, -56), addDays(start, -1)),
+        getTrainingSignals(user.uid),
+      ]);
+      const preferences = derivePreferences({
+        workouts: history,
+        signals,
+        templates,
+        today,
+      });
       const { items, shortfalls } = autoPlanWeek({
         days,
         existing: workouts ?? [],
@@ -121,6 +159,7 @@ export default function Plan() {
         recentNames: new Set(prior.map((w) => w.title)),
         // Don't back-fill days that have already passed.
         notBefore: weekOffset === 0 ? today : undefined,
+        preferences,
       });
       const missed = shortfalls
         .filter((s) => s.got < s.wanted)
@@ -137,10 +176,16 @@ export default function Plan() {
         return;
       }
       for (const item of items) {
-        await startWorkoutFromTemplate(user.uid, item.template, {
+        const id = await startWorkoutFromTemplate(user.uid, item.template, {
           date: item.date,
           slot: item.slot,
         });
+        // Two edits to what just got scheduled, both from your own history:
+        // leave out the exercises you keep removing from this routine, and
+        // set the weights from what you actually lifted last time rather than
+        // whatever the template was written with months ago.
+        const patch = tailorToHistory(item.template, id, history, preferences);
+        if (patch) await saveWorkoutDoc(user.uid, id, patch);
       }
       await load();
       setPlanMsg(
@@ -175,6 +220,10 @@ export default function Plan() {
     if (!user) return;
     setSwitching(null);
     setWorkouts((prev) => (prev ?? []).filter((x) => x.id !== w.id));
+    // Swapping is a softer no than deleting, but still a no.
+    if (w.status === "planned") {
+      await recordTrainingSignal(user.uid, signalFor(w, "replaced"));
+    }
     await deleteWorkout(user.uid, w.id);
     await startWorkoutFromTemplate(user.uid, template, {
       date: w.date,
@@ -199,6 +248,11 @@ export default function Plan() {
     if (!user) return;
     if (!confirm(`Remove "${w.title}" from ${prettyDay(w.date)}?`)) return;
     setWorkouts((prev) => (prev ?? []).filter((x) => x.id !== w.id));
+    // Deleting a session you never started is the clearest "not this" there
+    // is, and a hard delete would otherwise leave nothing to learn from.
+    if (w.status === "planned") {
+      await recordTrainingSignal(user.uid, signalFor(w, "deleted"));
+    }
     await deleteWorkout(user.uid, w.id);
   }
 
@@ -318,6 +372,13 @@ export default function Plan() {
           </Card>
         )}
       </section>
+
+      <LearnedSection
+        prefs={prefs}
+        open={showLearned}
+        onToggle={() => setShowLearned((v) => !v)}
+        onOfferAgain={(name) => void offerAgain(name)}
+      />
 
       {/* Label follows the week you're looking at — otherwise "Plan my week"
           on next week's view reads like it'd fill this one. */}
@@ -484,6 +545,152 @@ function SwitchSheet({
       </div>
     </Sheet>
   );
+}
+
+/**
+ * What the planner has worked out from what you actually did.
+ *
+ * Collapsed by default and hidden entirely until there's something to say —
+ * but never hidden once there is. Silently dropping a routine, with no way to
+ * see it happened or undo it, would be the worst version of this feature.
+ */
+function LearnedSection({
+  prefs,
+  open,
+  onToggle,
+  onOfferAgain,
+}: {
+  prefs: Preferences;
+  open: boolean;
+  onToggle: () => void;
+  onOfferAgain: (name: string) => void;
+}) {
+  const stopped = prefs.evidence.filter((e) => prefs.isRejected(e.name));
+  const dropped = [...prefs.droppedByTemplate.entries()];
+  const favourites = prefs.evidence.filter((e) => e.score >= 2).slice(-3).reverse();
+  const total = stopped.length + dropped.length + favourites.length;
+  if (!total) return null;
+
+  return (
+    <section>
+      <SectionHeader
+        title="What I've learned"
+        action={
+          <button
+            onClick={onToggle}
+            className="text-[15px] text-[color:var(--color-accent)] active:opacity-60"
+          >
+            {open ? "Hide" : `${total}`}
+          </button>
+        }
+      />
+      {open && (
+        <Card>
+          <div className="space-y-3 text-[13px] leading-snug">
+            {stopped.length > 0 && (
+              <div>
+                <div className="mb-1.5 text-[color:var(--color-muted)]">
+                  No longer suggesting
+                </div>
+                <Group>
+                  {stopped.map((e) => (
+                    <Row
+                      key={e.name}
+                      title={e.name}
+                      subtitle={`You dropped this ${e.rejected} time${
+                        e.rejected === 1 ? "" : "s"
+                      }`}
+                      trailing={
+                        <button
+                          onClick={() => onOfferAgain(e.name)}
+                          className="shrink-0 text-[15px] text-[color:var(--color-accent)] active:opacity-60"
+                        >
+                          Offer again
+                        </button>
+                      }
+                    />
+                  ))}
+                </Group>
+              </div>
+            )}
+            {dropped.length > 0 && (
+              <div>
+                <div className="mb-1.5 text-[color:var(--color-muted)]">
+                  Leaving out
+                </div>
+                <Group>
+                  {dropped.map(([template, exercises]) => (
+                    <Row
+                      key={template}
+                      title={[...exercises].join(", ")}
+                      subtitle={`from ${template}`}
+                    />
+                  ))}
+                </Group>
+              </div>
+            )}
+            {favourites.length > 0 && (
+              <div className="text-[color:var(--color-muted)]">
+                Favouring {favourites.map((f) => f.name).join(", ")} — you keep
+                finishing {favourites.length === 1 ? "it" : "them"}.
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Adjust a freshly scheduled workout to match how you actually train it./**
+ * Adjust a freshly scheduled workout to match how you actually train it.
+ *
+ * Returns the patch, or null when nothing needs changing — the common case
+ * once a routine has settled, and worth skipping so the planner isn't writing
+ * every document twice.
+ */
+function tailorToHistory(
+  template: WorkoutTemplate,
+  workoutId: string,
+  history: Workout[],
+  preferences: ReturnType<typeof derivePreferences>
+): { plannedSets: PlannedSet[] } | null {
+  const drop = preferences.dropped(template.name);
+  let sets = template.plannedSets.map((s, i) => ({ ...s, order: i + 1 }));
+
+  if (drop.size) {
+    const kept = sets.filter((s) => !drop.has(s.exerciseName));
+    // Never empty the session. If your edits would remove everything, the
+    // routine itself is the problem and deleting it is the honest fix.
+    if (kept.length) sets = kept.map((s, i) => ({ ...s, order: i + 1 }));
+  }
+
+  // Double progression off the last completed session for each exercise.
+  // suggestTargets skips timed work and anything it has no history for, so a
+  // brand-new exercise keeps the template's numbers.
+  const asWorkout: Workout = {
+    id: workoutId,
+    date: "",
+    title: template.name,
+    focus: template.focus,
+    status: "planned",
+    plannedSets: sets,
+  };
+  const suggestions = suggestTargets(asWorkout, history).filter((s) => s.changed);
+  if (suggestions.length) sets = applyTargets(sets, suggestions);
+
+  const unchanged =
+    sets.length === template.plannedSets.length &&
+    sets.every((s, i) => {
+      const o = template.plannedSets[i];
+      return (
+        s.exerciseName === o.exerciseName &&
+        s.targetReps === o.targetReps &&
+        s.targetWeight === o.targetWeight
+      );
+    });
+  return unchanged ? null : { plannedSets: sets };
 }
 
 /** Bottom sheet for moving a workout to a different day of the week. */

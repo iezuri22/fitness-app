@@ -23,6 +23,7 @@ import type {
 import { normalizeGoals, type WeeklyGoals } from "./weeklyGoals";
 import { resolveStarterTemplates } from "./starterTemplates";
 import { slotOrder } from "./slots";
+import type { TrainingSignal } from "./trainingSignals";
 import { NOTION_EXERCISES } from "./notionExercises";
 import { GYM_EXERCISES } from "./gymExercises";
 import { HOME_EXERCISES } from "./homeExercises";
@@ -391,6 +392,23 @@ export async function saveWorkout(userId: string, id: string, data: Partial<Work
   invalidate(cacheKey.workouts(userId));
   return wait(undefined as void);
 }
+let trainingSignals: TrainingSignal[] = [];
+
+export async function getTrainingSignals(userId: string) {
+  return cachedRead(cacheKey.signals(userId), async () => [...trainingSignals]);
+}
+export async function recordTrainingSignal(userId: string, signal: TrainingSignal) {
+  trainingSignals = [...trainingSignals, signal].slice(-200);
+  invalidate(cacheKey.signals(userId));
+  return wait(undefined as void);
+}
+
+export async function clearTrainingSignals(userId: string, templateName: string) {
+  trainingSignals = trainingSignals.filter((s) => s.templateName !== templateName);
+  invalidate(cacheKey.signals(userId));
+  return wait(undefined as void);
+}
+
 export async function deleteWorkout(userId: string, id: string) {
   const i = workouts.findIndex((w) => w.id === id);
   if (i >= 0) workouts.splice(i, 1);

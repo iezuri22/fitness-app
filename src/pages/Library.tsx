@@ -5,9 +5,11 @@ import {
   createTemplate,
   deleteTemplate,
   deleteWorkout,
+  getWorkout,
   importMissingNotionExercises,
   listExercises,
   listTemplates,
+  recordTrainingSignal,
   saveTemplate,
   startWorkoutFromTemplate,
   type TemplatePatch,
@@ -32,6 +34,7 @@ import {
   type ExerciseLocation,
 } from "../lib/generateWorkout";
 import { templateLoad } from "../lib/recommend";
+import { signalFor } from "../lib/trainingSignals";
 import ManagePlanSheet from "../components/ManagePlanSheet";
 import TemplateDetailsSheet from "../components/TemplateDetailsSheet";
 import {
@@ -485,6 +488,13 @@ export default function Library() {
     setStartingId(t.id);
     try {
       if (replaceId) {
+        // Picking something else for a slot that already had a plan is a
+        // rejection of what was there. Fetch it before deleting — this page
+        // holds templates, not workouts.
+        const replaced = await getWorkout(user.uid, replaceId);
+        if (replaced && replaced.status === "planned") {
+          await recordTrainingSignal(user.uid, signalFor(replaced, "replaced"));
+        }
         await deleteWorkout(user.uid, replaceId);
       }
       // Scheduling for a specific day (from the planner) lets the template's

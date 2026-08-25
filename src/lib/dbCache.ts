@@ -96,4 +96,5 @@ export const cacheKey = {
   workoutRange: (uid: string, start: string, end: string) =>
     `workouts:${uid}:range:${start}:${end}`,
   workoutList: (uid: string, limit: number) => `workouts:${uid}:list:${limit}`,
+  signals: (uid: string) => `signals:${uid}`,
 };

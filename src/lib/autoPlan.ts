@@ -25,6 +25,7 @@ import type { Workout, WorkoutTemplate } from "./types";
 import { kindOf, type WeeklyGoals, type WorkoutKind } from "./weeklyGoals";
 import { slotOrder, type SlotName } from "./slots";
 import { estimatePlannedMinutes } from "./timeEstimate";
+import { NO_PREFERENCES, type Preferences } from "./trainingSignals";
 
 export interface PlannedItem {
   date: string;
@@ -177,6 +178,22 @@ function patternOf(t: WorkoutTemplate): string {
  * week always sorts the same way, so re-planning a week is stable and the plan
  * can be reasoned about, while the next week comes out in a different order.
  */
+/**
+ * Collapse a preference score into a coarse band.
+ *
+ * Sorting on the raw number would let a single completed session outrank
+ * everything else and converge the plan on one routine. Bands mean a clearly
+ * liked routine beats a clearly disliked one while similar ones stay
+ * interchangeable, which is what leaves room for the variety rules.
+ */
+function band(score: number): number {
+  if (score >= 2) return 2;
+  if (score > 0) return 1;
+  if (score === 0) return 0;
+  if (score > -2) return -1;
+  return -2;
+}
+
 function weekJitter(name: string, weekKey: string): number {
   const s = `${weekKey}:${name}`;
   let h = 0;
@@ -211,8 +228,18 @@ export function autoPlanWeek(opts: {
   recentNames?: Set<string>;
   /** Don't schedule anything before this date (usually today). */
   notBefore?: string;
+  /** What you've shown you want, derived from lib/trainingSignals. */
+  preferences?: Preferences;
 }): AutoPlanResult {
-  const { days, existing, goals, templates, recentNames = new Set(), notBefore } = opts;
+  const {
+    days,
+    existing,
+    goals,
+    templates,
+    recentNames = new Set(),
+    notBefore,
+    preferences = NO_PREFERENCES,
+  } = opts;
 
   // A day is only "covered" by something that still counts — a skipped workout
   // leaves the slot open again.
@@ -240,7 +267,12 @@ export function autoPlanWeek(opts: {
 
   const plannable = days.filter((d) => !notBefore || d >= notBefore);
 
-  const active = templates.filter((t) => !t.archived);
+  // A routine you've deleted or skipped repeatedly stops being offered. It
+  // stays in the library — this is the planner declining to suggest it, not
+  // the app hiding it — and one stray deletion isn't enough to trigger it.
+  const active = templates.filter(
+    (t) => !t.archived && !preferences.isRejected(t.name)
+  );
   const byKind = new Map<WorkoutKind, WorkoutTemplate[]>();
   for (const t of active) {
     const k = kindOf({ title: t.name, focus: t.focus, category: t.category, format: t.format });
@@ -253,6 +285,8 @@ export function autoPlanWeek(opts: {
       // a stable order.
       const r = Number(recentNames.has(a.name)) - Number(recentNames.has(b.name));
       if (r !== 0) return r;
+      const pref = band(preferences.score(b.name)) - band(preferences.score(a.name));
+      if (pref !== 0) return pref;
       const p = priorityOf(a) - priorityOf(b);
       if (p !== 0) return p;
       return a.name.localeCompare(b.name);
@@ -285,6 +319,8 @@ export function autoPlanWeek(opts: {
     [...pool].sort((a, b) => {
       const r = Number(recentNames.has(a.name)) - Number(recentNames.has(b.name));
       if (r !== 0) return r;
+      const pref = band(preferences.score(b.name)) - band(preferences.score(a.name));
+      if (pref !== 0) return pref;
       return weekJitter(a.name, weekKey) - weekJitter(b.name, weekKey);
     });
 
