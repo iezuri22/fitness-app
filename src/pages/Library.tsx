@@ -49,7 +49,7 @@ import type {
   WorkoutTemplate,
 } from "../lib/types";
 
-type SlotPick = "morning-pt" | "strength";
+type SlotPick = "morning-stretch" | "morning-pt" | "strength";
 type TabKey = "pt" | "strength";
 type DurationKey = "any" | "short" | "medium" | "long";
 type KindKey = "any" | "benchmark" | "guided" | "standard";
@@ -161,7 +161,9 @@ export default function Library() {
   // matching category and treat a card-tap as "start workout for that slot".
   const rawPick = searchParams.get("pick");
   const pick: SlotPick | null =
-    rawPick === "morning-pt" || rawPick === "strength" ? rawPick : null;
+    rawPick === "morning-stretch" || rawPick === "morning-pt" || rawPick === "strength"
+      ? rawPick
+      : null;
   // When Today's "Change" link includes `?replace=<workoutId>`, we delete that
   // workout before creating a new one — so the slot ends up with exactly one
   // doc instead of accumulating abandoned picks.
@@ -221,9 +223,9 @@ export default function Library() {
   // Slot-pick locks the tab to that slot's category; browse and date-pick let
   // the user switch freely.
   const effectiveTab: TabKey = pick
-    ? pick === "morning-pt"
-      ? "pt"
-      : "strength"
+    ? pick === "strength"
+      ? "strength"
+      : "pt"
     : tab;
   const categoryTemplates =
     effectiveTab === "pt" ? ptTemplates : strengthTemplates;
@@ -524,8 +526,10 @@ export default function Library() {
           title={
             planDate
               ? "Schedule a workout"
+              : pick === "morning-stretch"
+              ? "Pick your morning stretch"
               : pick === "morning-pt"
-              ? "Pick your PT session"
+              ? "Pick your shoulder PT"
               : "Pick your workout"
           }
           subtitle={

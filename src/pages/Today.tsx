@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { SLOTS, isMorningSlot, type SlotName } from "../lib/slots";
 import {
   Button,
   Card,
@@ -22,7 +23,7 @@ import {
   type Workout,
 } from "../lib/types";
 
-type SlotName = "morning-pt" | "strength";
+
 
 /**
  * Home. Top → bottom:
@@ -92,36 +93,52 @@ export default function Today() {
   function slotDocs(slotName: SlotName, cat: TemplateCategory) {
     const docs = todayWorkouts.filter((w) => {
       if (w.slot) return w.slot === slotName;
-      if (w.category) return w.category === cat;
-      return false;
+      // Legacy docs carry no slot. Category alone can't tell the two morning
+      // slots apart, so a flow goes to the stretch slot and everything else
+      // PT-shaped to the rehab one — otherwise one document would fill both.
+      if (w.category !== cat) return false;
+      if (cat !== "PT Only") return true;
+      return slotName === (w.format === "flow" ? "morning-stretch" : "morning-pt");
     });
     return {
       active: docs.find((w) => w.status === "in_progress" || w.status === "planned"),
       completed: docs.find((w) => w.status === "completed"),
     };
   }
+  // A day is three parts now: five minutes of stretching, then shoulder
+  // rehab, then the workout. Keyed by slot, with a category fallback so
+  // documents written before the split still land somewhere sensible.
+  const stretchSlot = slotDocs("morning-stretch", "PT Only");
   const ptSlot = slotDocs("morning-pt", "PT Only");
   const fullSlot = slotDocs("strength", "Full");
+  const bySlot: Record<SlotName, ReturnType<typeof slotDocs>> = {
+    "morning-stretch": stretchSlot,
+    "morning-pt": ptSlot,
+    strength: fullSlot,
+  };
 
   const activePtId = ptSlot.active?.id;
   const activeFullId = fullSlot.active?.id;
   useEffect(() => {
     const pt = ptSlot.active;
     const full = fullSlot.active;
-    if (!pt && !full) return setFocusedSlot(null);
+    if (!stretchSlot.active && !pt && !full) return setFocusedSlot(null);
     // The morning routine is the opener — if it's still outstanding, it IS
     // what's next. This used to compare createdAt, which meant the answer
     // depended on the order the planner happened to write the two docs, and
     // the planner writes the opener first, so the strength session won.
-    setFocusedSlot(pt ? "morning-pt" : "strength");
+    setFocusedSlot(
+      stretchSlot.active ? "morning-stretch" : pt ? "morning-pt" : "strength"
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePtId, activeFullId]);
 
   const focusedWorkout = useMemo<Workout | null>(() => {
+    if (!focusedSlot) return null;
+    if (focusedSlot === "morning-stretch") return stretchSlot.active ?? null;
     if (focusedSlot === "morning-pt") return ptSlot.active ?? null;
-    if (focusedSlot === "strength") return fullSlot.active ?? null;
-    return null;
-  }, [focusedSlot, ptSlot.active, fullSlot.active]);
+    return fullSlot.active ?? null;
+  }, [focusedSlot, stretchSlot.active, ptSlot.active, fullSlot.active]);
 
   async function resumeActive(w: Workout) {
     if (!user) return;
@@ -221,24 +238,18 @@ export default function Today() {
       <section>
         <SectionHeader title="Today's sessions" />
         <Group>
-          <SessionRow
-            title="Morning PT"
-            emptyLabel="Choose a PT routine"
-            active={ptSlot.active}
-            completed={ptSlot.completed}
-            pickHref="/library?pick=morning-pt"
-            isFocused={focusedSlot === "morning-pt"}
-            onFocus={() => setFocusedSlot("morning-pt")}
-          />
-          <SessionRow
-            title="Strength"
-            emptyLabel="Choose a workout"
-            active={fullSlot.active}
-            completed={fullSlot.completed}
-            pickHref="/library?pick=strength"
-            isFocused={focusedSlot === "strength"}
-            onFocus={() => setFocusedSlot("strength")}
-          />
+          {SLOTS.map((slot) => (
+            <SessionRow
+              key={slot.key}
+              title={slot.hint ? `${slot.label} · ${slot.hint}` : slot.label}
+              emptyLabel={slot.emptyLabel}
+              active={bySlot[slot.key].active}
+              completed={bySlot[slot.key].completed}
+              pickHref={`/library?pick=${slot.key}`}
+              isFocused={focusedSlot === slot.key}
+              onFocus={() => setFocusedSlot(slot.key)}
+            />
+          ))}
           <Row
             to="/recommend"
             title="Not sure what to do?"
@@ -367,7 +378,7 @@ function UpNext({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[13px] text-[color:var(--color-muted)]">
-            {slot === "morning-pt" ? "Morning PT" : "Strength"}
+            {SLOTS.find((x) => x.key === slot)?.label ?? "Workout"}
             {inProgress && " · In progress"}
           </div>
           <h2 className="mt-0.5 text-[22px] font-semibold tracking-[-0.02em] leading-tight">
@@ -640,7 +651,7 @@ function formatLbs(n: number): string {
 
 /** Best-effort category for legacy workouts with no `category` field. */
 function inferCategoryFromWorkout(w: Workout): TemplateCategory {
-  if (w.slot === "morning-pt") return "PT Only";
+  if (isMorningSlot(w.slot)) return "PT Only";
   if (w.slot === "strength") return "Full";
   const hay = `${w.title || ""} ${w.focus || ""}`.toLowerCase();
   if (/\bpt\b|rehab|recovery/.test(hay) && !/strength|upper|lower|core|full body/.test(hay)) {

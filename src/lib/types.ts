@@ -90,11 +90,11 @@ export interface Workout {
   id: string;
   date: string; // "YYYY-MM-DD"
   /**
-   * Optional slot tag so two workouts can share a date. Set by the weekly
-   * planner when it splits a day into a morning PT session + a later strength
-   * session. `undefined` for legacy/single-per-day entries.
+   * Which part of the day this is, so several workouts can share a date. A day
+   * runs stretch → shoulder PT → workout; see lib/slots.ts for the ordering and
+   * the labels. `undefined` for legacy entries written before slots existed.
    */
-  slot?: "morning-pt" | "strength";
+  slot?: "morning-stretch" | "morning-pt" | "strength";
   title: string;
   focus: string; // "Upper Body + Shoulder Rehab", etc.
   status: WorkoutStatus;

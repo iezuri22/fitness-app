@@ -972,6 +972,156 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
       hold("Balasana — Child Pose", 30),
     ],
   },
+  // Seven five-minute morning flows — one per day, so a week doesn't repeat.
+  //
+  // All full-body, all weighted toward hips and spine: those are what a night's
+  // sleep and a day at a desk stiffen most, and what every lift downstream
+  // depends on. Each is ten 30-second holds summing to the cap exactly, which
+  // is what the runner counts down.
+  //
+  // Extension-biased and neutral-spine, because these run first thing. Discs
+  // are at their most hydrated overnight, so deep loaded flexion is the one
+  // thing to keep out of a morning — no plough, no weighted folds.
+  {
+    name: "Stretch · 5 min Hips + Spine",
+    focus: "Mobility · 5 min · full body, hips + spine",
+    category: "PT Only",
+    format: "flow",
+    capMinutes: 5,
+    notes: "The default morning. Spine first to get moving, then the hips, then everything else gets a turn.",
+    sets: [
+      hold("Cat-Cow Pose", 30, "Move with the breath. Motion, not a stretch."),
+      hold("Bhujangasana — Cobra Abdominal Stretch", 30, "Gentle press-up, hips stay down."),
+      hold("Thread the Needle", 30, "15 each side. Rotation from the mid-back."),
+      hold("Kneeling Hip Flexor Stretch", 30, "15 each side. Squeeze the back glute — that's what makes it work."),
+      hold("Ardha Kapotasana - Half Pigeon Pose", 30, "15 each side. Let the hip melt, don't push."),
+      hold("Figure Four Glute Stretch", 30, "15 each side."),
+      hold("Supine Spinal Twist", 30, "15 each side. Shoulders stay down."),
+      hold("Doorway Chest Stretch", 30, "Undo the night's side-sleeping."),
+      hold("Standing Hamstring Stretch", 30, "15 each side. Soft knee."),
+      hold("Calf Stretch at Wall", 30, "15 each side."),
+    ],
+  },
+  {
+    name: "Stretch · 5 min Ground Flow",
+    focus: "Mobility · 5 min · full body, hips + spine",
+    category: "PT Only",
+    format: "flow",
+    capMinutes: 5,
+    notes: "Everything on the floor. Good for the mornings you don't fancy standing up yet.",
+    sets: [
+      hold("Cat-Cow Pose", 30, "Six slow cycles."),
+      hold("Balasana — Child Pose", 30, "Breathe into your back ribs."),
+      hold("Seal Stretch", 30, "Gentle — hips stay heavy."),
+      hold("90/90 Hip Stretch", 30, "15 each side. Sit tall before you lean."),
+      hold("Titli Asana — Butterfly Pose", 30, "Knees heavy, no bouncing."),
+      hold("Frog Stretch", 30, "Widen slowly. Back off if the knees complain."),
+      hold("Supine Spinal Twist", 30, "15 each side."),
+      hold("Figure Four Glute Stretch", 30, "15 each side."),
+      hold("Bird Dog", 30, "Brace like someone's about to poke your ribs."),
+      hold("Cross-Body Shoulder Stretch", 30, "15 each side to finish."),
+    ],
+  },
+  {
+    name: "Stretch · 5 min Open Up",
+    focus: "Mobility · 5 min · full body, hips + spine",
+    category: "PT Only",
+    format: "flow",
+    capMinutes: 5,
+    notes: "Minimal floor time — a lunge and a down dog is all it needs. Good for a hotel room or the corner of a gym.",
+    sets: [
+      hold("Cat-Cow Pose", 30, "Six slow cycles to start the spine moving."),
+      hold("World's Greatest Stretch", 30, "15 each side. Lunge, elbow to instep, rotate up and open."),
+      hold("Kneeling Hip Flexor Stretch", 30, "15 each side. Squeeze the back glute."),
+      hold("Adho Mukha Svanasana — Downward Facing Dog", 30, "Push the floor away, lengthen the spine."),
+      hold("Thread the Needle", 30, "15 each side. Rotation from the mid-back."),
+      hold("Malasana — Squat Pose or Garland Pose", 30, "Elbows inside the knees, chest tall."),
+      hold("Standing Quad Stretch", 30, "15 each side."),
+      hold("Standing Hamstring Stretch", 30, "15 each side. Soft knee."),
+      hold("Doorway Chest Stretch", 30, "Elbow at shoulder height, never above."),
+      hold("Calf Stretch at Wall", 30, "15 each side."),
+    ],
+  },
+  {
+    name: "Stretch · 5 min Deep Hips",
+    focus: "Mobility · 5 min · full body, hips + spine",
+    category: "PT Only",
+    format: "flow",
+    capMinutes: 5,
+    notes: "Hip-dominant. Save this for the morning after squats or a long run, when the hips are the thing that won't let go.",
+    sets: [
+      hold("Cat-Cow Pose", 30, "Wake the spine up first."),
+      hold("Kneeling Hip Flexor Stretch", 30, "15 each side. Back glute on."),
+      hold("Couch Stretch", 30, "15 each side. Ribs down, don't arch to fake range."),
+      hold("Ardha Kapotasana - Half Pigeon Pose", 30, "15 each side."),
+      hold("90/90 Hip Stretch", 30, "15 each side. Rotate both ways."),
+      hold("Frog Stretch", 30, "Slow. This one rewards patience."),
+      hold("Foam Roller Glutes", 30, "15 each side."),
+      hold("Supine Spinal Twist", 30, "15 each side. Unwind the low back."),
+      hold("Bhujangasana — Cobra Abdominal Stretch", 30, "Extension to finish."),
+      hold("Standing Hamstring Stretch", 30, "15 each side."),
+    ],
+  },
+  {
+    name: "Stretch · 5 min Spine + Chest",
+    focus: "Mobility · 5 min · full body, hips + spine",
+    category: "PT Only",
+    format: "flow",
+    capMinutes: 5,
+    notes: "Extension-dominant. The antidote to a day hunched at a screen, and the best thing before a pressing day.",
+    sets: [
+      hold("Cat-Cow Pose", 30, "Slow cycles, full range."),
+      hold("Foam Roller Thoracic Extension", 30, "Work up and down the mid-back."),
+      hold("Bhujangasana — Cobra Abdominal Stretch", 30, "Hips down, press up gently."),
+      hold("Camel Pose", 30, "Hands on the hips is plenty. Chin tucked."),
+      hold("Thread the Needle", 30, "15 each side."),
+      hold("Doorway Chest Stretch", 30, "Elbow at shoulder height."),
+      hold("Adho Mukha Svanasana — Downward Facing Dog", 30, "Push the floor away, heels reaching down."),
+      hold("Kneeling Hip Flexor Stretch", 30, "15 each side."),
+      hold("Figure Four Glute Stretch", 30, "15 each side."),
+      hold("Balasana — Child Pose", 30, "Long exhale to finish."),
+    ],
+  },
+  {
+    name: "Stretch · 5 min Roller Reset",
+    focus: "Mobility · 5 min · full body, hips + spine",
+    category: "PT Only",
+    format: "flow",
+    capMinutes: 5,
+    notes: "Foam roller morning. Roll slowly — you're looking for tone to let go, not trying to win.",
+    sets: [
+      hold("Foam Roller Thoracic Extension", 30, "Roller under the mid-back, open up over it."),
+      hold("Foam Roller Back Stretch", 30, "Slow passes, breathe out on the tender bits."),
+      hold("Foam Roller Glutes", 30, "15 each side."),
+      hold("Foam Roller Calves", 30, "15 each side."),
+      hold("Cat-Cow Pose", 30, "Move what you just released."),
+      hold("Kneeling Hip Flexor Stretch", 30, "15 each side."),
+      hold("Supine Spinal Twist", 30, "15 each side."),
+      hold("Titli Asana — Butterfly Pose", 30, "Knees heavy."),
+      hold("Doorway Chest Stretch", 30, "Chest open."),
+      hold("Standing Quad Stretch", 30, "15 each side."),
+    ],
+  },
+  {
+    name: "Stretch · 5 min Long Lines",
+    focus: "Mobility · 5 min · full body, hips + spine",
+    category: "PT Only",
+    format: "flow",
+    capMinutes: 5,
+    notes: "The whole back line, top to bottom — spine, glutes, hamstrings, calves. Best on a running or hinge day.",
+    sets: [
+      hold("Cat-Cow Pose", 30, "Start moving before you start stretching."),
+      hold("Adho Mukha Svanasana — Downward Facing Dog", 30, "Pedal the heels, find the calves."),
+      hold("Standing Hamstring Stretch", 30, "15 each side. Soft knee — it's a morning."),
+      hold("Figure Four Glute Stretch", 30, "15 each side."),
+      hold("Ardha Kapotasana - Half Pigeon Pose", 30, "15 each side."),
+      hold("Calf Stretch at Wall", 30, "15 each side. Back heel down."),
+      hold("Foam Roller Calves", 30, "15 each side."),
+      hold("Kneeling Hip Flexor Stretch", 30, "15 each side. The front of the hip matters too."),
+      hold("Bhujangasana — Cobra Abdominal Stretch", 30, "Extension to balance all that folding."),
+      hold("Supine Spinal Twist", 30, "15 each side."),
+    ],
+  },
   {
     name: "Stretch · 10 min Full Body",
     focus: "Mobility · 10 min",
@@ -1031,6 +1181,79 @@ export const STARTER_TEMPLATES: SeedTemplate[] = [
       hold("Kneeling Hip Flexor Stretch", 60, "30 each side. This is the one that matters."),
       hold("Figure Four Glute Stretch", 60, "30 each side."),
       hold("Balasana — Child Pose", 60),
+    ],
+  },
+
+  // ---------- TEN-MINUTE SHOULDER PT ----------
+  // The second half of the morning: five minutes of stretching wakes you up,
+  // then ten minutes of actual rehab. The pack already had three ~9-minute
+  // rehab sessions (cuff strength, scapular control, isometrics); a week needs
+  // seven, so these add the emphases those three don't cover — assisted range,
+  // the prone posterior-cuff series, and a higher-rep banded circuit.
+  //
+  // Nothing here loads abduction + external rotation together. That's the
+  // apprehension position for an anterior repair, which is why the catalog's
+  // prone ER at 90° is deliberately absent from all of them.
+  {
+    name: "PT · Pulley + Range 10",
+    minutes: 10,
+    focus: "Shoulder · Assisted range · 10 min",
+    category: "PT Only",
+    notes:
+      "Range day. Assisted first, then your own control, then a gentle stretch. Nothing here should pinch — if it does, shorten the range rather than pushing through.",
+    sets: [
+      pt("Pulley Assisted Flexion", 10, 2, 20, "Let the good arm do the lifting. Slow down on the way back."),
+      pt("Pulley Assisted Abduction", 10, 2, 20, "Thumb up, stop where it's comfortable."),
+      pt("Shoulder CARs (slow)", 4, 2, 25, "One slow circle each. Find the sticky spots, don't force them."),
+      pt("Banded Shoulder Distraction", 8, 2, 20, "Gentle traction. Breathe out as you lean away."),
+      stretch("Banded Sleeper Stretch (gentle)", 1, 20, "30s. Gentle — this one is easy to overdo."),
+      stretch("Cross-Body Shoulder Stretch", 1, 0, "30s each side to finish."),
+    ],
+  },
+  {
+    name: "PT · Prone Series 10",
+    minutes: 10,
+    focus: "Shoulder · Posterior cuff · 10 min",
+    category: "PT Only",
+    notes:
+      "Face down, no weight needed. The lower traps and posterior cuff are what stop the shoulder shrugging to get overhead, and they only wake up when gravity is the resistance.",
+    sets: [
+      pt("Prone Y Raise", 10, 2, 25, "Thumbs up, arms at 45°. Lift from the shoulder blade, not the hand."),
+      pt("Prone T Raise", 10, 2, 25, "Straight out to the sides. Squeeze at the top."),
+      pt("Prone W Raise", 10, 2, 25, "Elbows bent, drive them down and back."),
+      pt("Prone Swimmer", 8, 2, 25, "Slow and continuous. Stop if it pinches at the top."),
+      pt("Scapular Retraction Hold", 5, 1, 20, "5 × 5-second squeezes to finish."),
+    ],
+  },
+  {
+    name: "PT · Serratus + Overhead 10",
+    minutes: 10,
+    focus: "Shoulder · Overhead mechanics · 10 min",
+    category: "PT Only",
+    notes:
+      "The serratus is what rotates the shoulder blade up so the arm can go overhead without the joint pinching. It's the piece the other rehab days don't cover, and it's why pressing starts to feel better.",
+    sets: [
+      pt("Serratus Wall Slide With Foam Roller", 10, 2, 25, "Press the roller into the wall the whole way up."),
+      pt("Serratus Punch (supine)", 12, 2, 20, "On your back, punch the ceiling. Shoulder blade lifts off the floor."),
+      pt("Scapular Push-up", 10, 2, 20, "Arms locked. All the movement is between the shoulder blades."),
+      pt("Scapular Wall Slides", 10, 2, 25, "Ribs down, arms glued to the wall."),
+      pt("Dowel-assisted Overhead Reach", 8, 1, 20, "Good arm guides. Only as far as it goes freely."),
+      pt("Isometric Shoulder Flexion (wall)", 5, 1, 20, "5-second pushes into the wall."),
+    ],
+  },
+  {
+    name: "PT · Band Circuit 10",
+    minutes: 10,
+    focus: "Shoulder · Banded volume · 10 min",
+    category: "PT Only",
+    notes:
+      "Higher reps, light band, short rests — blood in the cuff rather than load on it. Use the lightest band that still makes the last two reps feel like work.",
+    sets: [
+      pt("Band External Rotation", 15, 2, 20, "Elbow pinned to your side. Slow out, slower back."),
+      pt("Band Internal Rotation", 15, 2, 20, "Same elbow position, other direction."),
+      pt("Band Face Pull with External Rotation", 12, 2, 25, "Pull to the face, then rotate up. Two movements, one rep."),
+      pt("Band Scaption Raise", 12, 2, 20, "Thumbs up, 45° between straight ahead and out to the side."),
+      pt("Band Pull-Apart", 15, 2, 20, "Shoulder blades to your back pockets."),
     ],
   },
 

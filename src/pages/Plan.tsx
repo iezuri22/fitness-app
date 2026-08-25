@@ -20,6 +20,7 @@ import {
   SheetHeader,
 } from "../components/ui";
 import { autoPlanWeek } from "../lib/autoPlan";
+import { isMorningSlot } from "../lib/slots";
 import { Segmented } from "../components/ui";
 import type { WorkoutTemplate } from "../lib/types";
 import { todayStr, weekRange } from "../lib/dates";
@@ -625,7 +626,7 @@ function PlannedRow({
   // Falling back to category made a PT-categorised AMRAP scheduled as a main
   // session look like the fixed morning opener — no switch button, wrong dot.
   // Category is only consulted for legacy docs written before slots existed.
-  const isPT = w.slot ? w.slot === "morning-pt" : w.category === "PT Only";
+  const isPT = w.slot ? isMorningSlot(w.slot) : w.category === "PT Only";
   const done = w.status === "completed";
   // Switching throws the old doc away, so only offer it while there's nothing
   // to throw away. Once a set is logged, Remove (which confirms) is the way out.

@@ -30,6 +30,7 @@ import { HOME_EXERCISES } from "./homeExercises";
 import { GYM_EXERCISES } from "./gymExercises";
 import { findGifForName } from "./exerciseGifs";
 import { normalizeGoals, type WeeklyGoals } from "./weeklyGoals";
+import { slotOrder } from "./slots";
 
 // Path helpers
 const userRoot = (uid: string) => `users/${uid}`;
@@ -229,7 +230,7 @@ export async function getWorkoutByDate(
  * can have a morning PT session plus a later strength session — both are
  * distinct docs with the same `date` field and different `slot` values.
  *
- * Ordering: morning-pt first, then strength, then any legacy doc with no
+ * Ordering: stretch, then shoulder PT, then the workout, then any legacy doc with no
  * slot tag.
  */
 export async function getWorkoutsByDate(
@@ -243,7 +244,7 @@ export async function getWorkoutsByDate(
     (d) => ({ id: d.id, ...(d.data() as Omit<Workout, "id">) })
   );
   const rank = (w: Workout) =>
-    w.slot === "morning-pt" ? 0 : w.slot === "strength" ? 1 : 2;
+    slotOrder(w.slot);
   return list.sort((a, b) => rank(a) - rank(b));
 }
 
@@ -576,11 +577,14 @@ export async function startWorkoutFromTemplate(
   }));
   // Default slot: PT Only → morning-pt, Full → strength. Callers can override
   // (e.g. running a PT template as a second session later in the day).
-  // An AMRAP is conditioning, so it belongs in the main slot even when the
-  // template is filed under PT — "AMRAP · Recovery 25" is a recovery session,
-  // not a morning stretch routine.
+  // A guided stretch flow IS the five-minute opener, so it defaults to the
+  // stretch slot. An AMRAP is conditioning and belongs in the main slot even
+  // when filed under PT — "AMRAP · Recovery 25" is a recovery session, not a
+  // morning routine. Everything else PT-shaped is the shoulder work.
   const defaultSlot: Workout["slot"] =
-    template.category === "PT Only" && template.format !== "amrap"
+    template.format === "flow"
+      ? "morning-stretch"
+      : template.category === "PT Only" && template.format !== "amrap"
       ? "morning-pt"
       : "strength";
   const slot = opts.slot ?? defaultSlot;

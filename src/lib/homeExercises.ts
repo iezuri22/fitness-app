@@ -244,4 +244,15 @@ export const HOME_EXERCISES: SeedExercise[] = [
   { name: 'Pulley Assisted Abduction', category: 'PT/Rehab', equipment: ['Pulley'], muscleGroups: [], isPT: true, isBannedLatarjet: false },
   { name: 'Pilates Ball Wall Push', category: 'PT/Rehab', equipment: ['Pilates ball'], muscleGroups: [], isPT: true, isBannedLatarjet: false },
   { name: 'Pilates Ball Scapular Squeeze', category: 'PT/Rehab', equipment: ['Pilates ball'], muscleGroups: [], isPT: true, isBannedLatarjet: false },
+  // --- Neck, wrist and spine mobility for the five-minute morning flows ---
+  // No equipment, no load; these exist so a morning stretch can target the bits
+  // a lifting programme quietly beats up.
+  { name: 'Neck Side Stretch', category: 'Mobility', equipment: [], muscleGroups: ['Neck', 'Upper Traps'], isPT: false, isBannedLatarjet: false, notes: 'Ear to shoulder. Let the arm hang; never pull hard on the head.' },
+  { name: 'Levator Scapulae Stretch', category: 'Mobility', equipment: [], muscleGroups: ['Neck', 'Levator Scapulae'], isPT: false, isBannedLatarjet: false, notes: 'Nose toward the armpit, opposite hand gently guiding.' },
+  { name: 'Upper Trap Stretch', category: 'Mobility', equipment: [], muscleGroups: ['Upper Traps'], isPT: false, isBannedLatarjet: false, notes: 'Sit on the opposite hand to anchor the shoulder down.' },
+  { name: 'Chin Tuck', category: 'PT/Rehab', equipment: [], muscleGroups: ['Deep Neck Flexors'], isPT: true, isBannedLatarjet: false, defaultReps: 10, notes: 'Make a double chin and hold. Undoes a day of screen posture.' },
+  { name: 'Supine Spinal Twist', category: 'Mobility', equipment: [], muscleGroups: ['Spine', 'Glutes'], isPT: false, isBannedLatarjet: false, notes: 'Knees over to one side, both shoulders stay on the floor.' },
+  { name: 'Wrist Flexor Stretch', category: 'Mobility', equipment: [], muscleGroups: ['Forearms'], isPT: false, isBannedLatarjet: false, notes: 'Arm straight, fingers pointing down, gentle pressure.' },
+  { name: 'Wrist Extensor Stretch', category: 'Mobility', equipment: [], muscleGroups: ['Forearms'], isPT: false, isBannedLatarjet: false, notes: 'Arm straight, fingers pointing up.' },
+  { name: 'Wrist Circles', category: 'Mobility', equipment: [], muscleGroups: ['Forearms', 'Wrists'], isPT: false, isBannedLatarjet: false, notes: 'Both directions, slow. Good before rope work or hanging.' },
 ];

@@ -22,6 +22,7 @@ import type {
 } from "./types";
 import { normalizeGoals, type WeeklyGoals } from "./weeklyGoals";
 import { resolveStarterTemplates } from "./starterTemplates";
+import { slotOrder } from "./slots";
 import { NOTION_EXERCISES } from "./notionExercises";
 import { GYM_EXERCISES } from "./gymExercises";
 import { HOME_EXERCISES } from "./homeExercises";
@@ -281,7 +282,7 @@ if (flow) {
   workouts.push({
     id: "w-today-flow",
     date: todayStr(),
-    slot: "morning-pt",
+    slot: "morning-stretch",
     title: flow.name,
     focus: flow.focus,
     status: "planned",
@@ -366,7 +367,7 @@ export async function getWorkoutByDate(_uid: string, date: string) {
 }
 export async function getWorkoutsByDate(_uid: string, date: string) {
   const rank = (w: Workout) =>
-    w.slot === "morning-pt" ? 0 : w.slot === "strength" ? 1 : 2;
+    slotOrder(w.slot);
   return wait(workouts.filter((w) => w.date === date).sort((a, b) => rank(a) - rank(b)));
 }
 export async function listWorkouts(uid: string, opts: { limit?: number } = {}) {
@@ -533,7 +534,13 @@ export async function startWorkoutFromTemplate(
   workouts.push({
     id,
     date: opts.date ?? todayStr(),
-    slot: opts.slot ?? (template.category === "PT Only" ? "morning-pt" : "strength"),
+    slot:
+      opts.slot ??
+      (template.format === "flow"
+        ? "morning-stretch"
+        : template.category === "PT Only" && template.format !== "amrap"
+        ? "morning-pt"
+        : "strength"),
     title: template.name,
     focus: template.focus,
     status: "planned",

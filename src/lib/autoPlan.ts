@@ -23,13 +23,15 @@
  */
 import type { Workout, WorkoutTemplate } from "./types";
 import { kindOf, type WeeklyGoals, type WorkoutKind } from "./weeklyGoals";
+import { slotOrder, type SlotName } from "./slots";
+import { estimatePlannedMinutes } from "./timeEstimate";
 
 export interface PlannedItem {
   date: string;
   template: WorkoutTemplate;
   kind: WorkoutKind;
-  /** Which half of the day this fills. */
-  slot: "morning-pt" | "strength";
+  /** Which part of the day this fills. */
+  slot: SlotName;
 }
 
 export interface AutoPlanResult {
@@ -40,6 +42,9 @@ export interface AutoPlanResult {
 
 /** Kinds that can serve as a day's main session. PT never does — it's the opener. */
 const MAIN_KINDS: WorkoutKind[] = ["gym", "amrap", "home", "class"];
+
+/** What the morning PT slot is budgeted for. */
+const PT_TARGET_MIN = 10;
 
 const WEEKDAY_ABBR = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const WEEKDAY_FULL = [
@@ -103,7 +108,33 @@ function openerRank(t: WorkoutTemplate): number {
  * Body" reads like a fine morning stretch and contains no upper body at all.
  */
 const SHOULDER_WORK =
-  /external rotation|internal rotation|pull.?apart|scapular|scap |shoulder|rotator|cuff|doorway chest|cross.?body|thread the needle|overhead reach|pulley|wall slide|cars/i;
+  new RegExp(
+    [
+      // Cuff, directly.
+      "external rotation", "internal rotation", "rotator", "cuff", "sleeper",
+      // Scapular control, including the prone series — a prone Y raise is
+      // lower-trap work and belongs here even though it names neither.
+      "scapular", "scap ", "wall slide", "pull.?apart", "serratus",
+      "prone [ytwi] ", "prone swimmer", "scaption", "face pull", "retraction",
+      // Range and the joint itself.
+      "shoulder", "pulley", "overhead reach", "distraction", "cars",
+      // Soft tissue around it.
+      "doorway chest", "cross.?body", "thread the needle",
+    ].join("|"),
+    "i"
+  );
+
+/**
+ * Fraction of a routine's sets that are shoulder work. Used to put the
+ * dedicated rehab sessions ahead of a general mobility flow that happens to
+ * contain one chest stretch — both pass hasShoulderWork, but only one of them
+ * is "PT for my shoulder".
+ */
+function shoulderShare(t: WorkoutTemplate): number {
+  const sets = t.plannedSets ?? [];
+  if (!sets.length) return 0;
+  return sets.filter((s) => SHOULDER_WORK.test(s.exerciseName)).length / sets.length;
+}
 
 function hasShoulderWork(t: WorkoutTemplate): boolean {
   return (t.plannedSets ?? []).some((s) => SHOULDER_WORK.test(s.exerciseName));
@@ -185,7 +216,8 @@ export function autoPlanWeek(opts: {
 
   // A day is only "covered" by something that still counts — a skipped workout
   // leaves the slot open again.
-  const hasOpener = new Set<string>();
+  const hasStretch = new Set<string>();
+  const hasPT = new Set<string>();
   const hasMain = new Set<string>();
   // Sessions already on the week count against the weekly goals. Without this,
   // re-planning on a Saturday sees "0 strength days assigned so far" and books
@@ -194,8 +226,15 @@ export function autoPlanWeek(opts: {
   for (const w of existing) {
     if (w.status === "skipped") continue;
     const k = kindOf(w);
-    if (k === "pt" || w.slot === "morning-pt") hasOpener.add(w.date);
-    else hasMain.add(w.date);
+    // Prefer the slot the doc actually carries; fall back to shape for legacy
+    // entries written before the day had three parts.
+    if (w.slot === "morning-stretch" || (!w.slot && w.format === "flow")) {
+      hasStretch.add(w.date);
+    } else if (w.slot === "morning-pt" || (!w.slot && k === "pt")) {
+      hasPT.add(w.date);
+    } else {
+      hasMain.add(w.date);
+    }
     if (k === "gym" || k === "home") existingStrength++;
   }
 
@@ -235,36 +274,81 @@ export function autoPlanWeek(opts: {
   // so a library without the ideal templates still gets its days filled.
   const ptTemplates = byKind.get("pt") ?? [];
   const notEvening = ptTemplates.filter((t) => openerRank(t) < 4);
-  const shoulderRoutines = notEvening.filter(hasShoulderWork);
-  const openerPool = shoulderRoutines.length
-    ? shoulderRoutines
-    : notEvening.length
-    ? notEvening
-    : ptTemplates;
 
-  // Two sources of variety, in order. Recency cycles through the pool so a
-  // fortnight's worth of openers are all different. Once the pool is smaller
-  // than the lookback — 14 acceptable routines against 7 days a week and a
-  // 14-day window — everything is "recent" and recency stops discriminating,
+  // Two sources of variety, in order. Recency cycles through a pool so a
+  // fortnight's worth are all different. Once a pool is smaller than the
+  // lookback everything reads as "recent" and recency stops discriminating,
   // so a per-week shuffle takes over. Keyed off the week's Monday, so it is
   // stable if you re-plan the same week and different for the next one.
   const weekKey = days[0] ?? "";
-  const openers = [...openerPool].sort((a, b) => {
-    const r = Number(recentNames.has(a.name)) - Number(recentNames.has(b.name));
-    if (r !== 0) return r;
-    return weekJitter(a.name, weekKey) - weekJitter(b.name, weekKey);
-  });
+  const varied = (pool: WorkoutTemplate[]) =>
+    [...pool].sort((a, b) => {
+      const r = Number(recentNames.has(a.name)) - Number(recentNames.has(b.name));
+      if (r !== 0) return r;
+      return weekJitter(a.name, weekKey) - weekJitter(b.name, weekKey);
+    });
 
-  const needOpener = plannable.filter((d) => !hasOpener.has(d));
-  if (needOpener.length) {
-    if (!openers.length) {
-      shortfalls.push({ kind: "pt", wanted: needOpener.length, got: 0 });
-    } else {
-      needOpener.forEach((date, i) => {
-        items.push({ date, template: openers[i % openers.length], kind: "pt", slot: "morning-pt" });
-      });
+  const fill = (
+    dates: string[],
+    pool: WorkoutTemplate[],
+    slot: PlannedItem["slot"]
+  ) => {
+    if (!dates.length) return;
+    if (!pool.length) {
+      shortfalls.push({ kind: "pt", wanted: dates.length, got: 0 });
+      return;
     }
-  }
+    dates.forEach((date, i) => {
+      items.push({ date, template: pool[i % pool.length], kind: "pt", slot });
+    });
+  };
+
+  // 1a. The five-minute stretch. Guided flows run to a clock and auto-advance,
+  //     which is what makes them a timer you follow rather than a list you
+  //     read — exactly the thing to start on before you're properly awake.
+  const flows = notEvening.filter((t) => t.format === "flow");
+  const shortFlows = flows.filter((t) => (t.capMinutes ?? 99) <= 5);
+  // Prefer the full-body flows. A morning should move everything, weighted to
+  // hips and spine — the bits a night's sleep and a day at a desk stiffen most.
+  // The narrower ones (shoulders only, hips only) stay in the library to pick
+  // by hand on a day something specific is complaining, but they're the wrong
+  // default because they leave most of you untouched.
+  const fullBody = shortFlows.filter((t) => /full body/i.test(t.focus));
+  const stretchPool = fullBody.length
+    ? fullBody
+    : shortFlows.length
+    ? shortFlows
+    : flows;
+  fill(
+    plannable.filter((d) => !hasStretch.has(d)),
+    varied(stretchPool),
+    "morning-stretch"
+  );
+
+  // 1b. The shoulder work. Everything here has cuff or scap content — that's
+  //     the whole point of the slot — and the most shoulder-dominant routines
+  //     sort first, so a general mobility session is only reached when the
+  //     dedicated rehab ones are used up.
+  const ptCandidates = notEvening.filter(
+    (t) => t.format !== "flow" && hasShoulderWork(t)
+  );
+  const ptPool = ptCandidates.length
+    ? ptCandidates
+    : notEvening.filter((t) => t.format !== "flow");
+  // Order by fitness for the slot, then vary within each band. The slot is
+  // "ten minutes of shoulder PT", so a routine earns its place by being close
+  // to ten minutes AND mostly shoulder work — a six-minute desk reset is a
+  // fine routine and the wrong answer here. Sorting on a banded score rather
+  // than the raw numbers leaves ties for the shuffle to break, which is what
+  // keeps the week from being identical to the last one.
+  const ptFit = (t: WorkoutTemplate) => {
+    const mins = estimatePlannedMinutes(t);
+    const nearTen = Math.min(3, Math.round(Math.abs(mins - PT_TARGET_MIN) / 2));
+    const shoulder = 3 - Math.min(3, Math.round(shoulderShare(t) * 3));
+    return nearTen * 4 + shoulder;
+  };
+  const ptOrdered = varied(ptPool).sort((a, b) => ptFit(a) - ptFit(b));
+  fill(plannable.filter((d) => !hasPT.has(d)), ptOrdered, "morning-pt");
 
   // ---- 2. One main session on every day that lacks one -----------------
   const needMain = plannable.filter((d) => !hasMain.has(d));
@@ -347,7 +431,9 @@ export function autoPlanWeek(opts: {
     items.push({ date, template: a.template, kind: a.kind, slot: "strength" });
   }
 
-  items.sort((a, b) => a.date.localeCompare(b.date) || (a.slot === "morning-pt" ? -1 : 1));
+  items.sort(
+    (a, b) => a.date.localeCompare(b.date) || slotOrder(a.slot) - slotOrder(b.slot)
+  );
   return { items, shortfalls };
 }
 
