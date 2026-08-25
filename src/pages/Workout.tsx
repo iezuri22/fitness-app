@@ -3,7 +3,16 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBack } from "../hooks/useBack";
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
 import { useAuth } from "../hooks/useAuth";
-import { getAmrapHistory, getWorkout, listExercises, saveWorkout, type AmrapResult } from "../lib/db";
+import {
+  deleteWorkout,
+  getAmrapHistory,
+  getWorkout,
+  listExercises,
+  recordTrainingSignal,
+  saveWorkout,
+  type AmrapResult,
+} from "../lib/db";
+import { signalFor } from "../lib/trainingSignals";
 import { Button, Card, Overlay, PageSkeleton, ProgressBar, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
 import SwipeBack from "../components/SwipeBack";
@@ -12,12 +21,14 @@ import IntervalTimer from "../components/IntervalTimer";
 import ExercisePicker from "../components/ExercisePicker";
 import ManagePlanSheet from "../components/ManagePlanSheet";
 import SingleSetTimer from "../components/SingleSetTimer";
+import SwipeToDelete from "../components/SwipeToDelete";
 import AmrapRunner from "../components/AmrapRunner";
 import FlowRunner from "../components/FlowRunner";
 import { defaultEstimatedMinutes, isTimeBasedExercise } from "../lib/duration";
 import { demoUrlsForSets, prefetchInBackground } from "../lib/offlineDemos";
 import type { Exercise, PlannedSet, Workout } from "../lib/types";
 import { fmtDuration } from "../lib/dates";
+import { estimatePlannedMinutes } from "../lib/timeEstimate";
 import {
   buildBlocks,
   interleaveSupersetSets,
@@ -43,6 +54,16 @@ export default function WorkoutPage() {
   const [showFinish, setShowFinish] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  /** Dismissed for this visit — asking again on every render would be a trap. */
+  const [finishModeAsked, setFinishModeAsked] = useState(false);
+  /** The last value carried to later sets, so it can be nudged or undone. */
+  const [carry, setCarry] = useState<{
+    exerciseId: string;
+    field: "actualWeight" | "actualReps";
+    value: number;
+    ids: Set<string>;
+    before: Map<string, number | null>;
+  } | null>(null);
   const [singleTimerSet, setSingleTimerSet] = useState<PlannedSet | null>(null);
   const [intervalSetup, setIntervalSetup] = useState(false);
   const [intervalRunning, setIntervalRunning] = useState<{
@@ -91,6 +112,23 @@ export default function WorkoutPage() {
   }, [exercises]);
 
   const [now, setNow] = useState(Date.now());
+  /**
+   * Ask how to finish, once, on a standard session that hasn't been asked.
+   * AMRAPs and flows already run to their own clock, so the question would be
+   * meaningless there.
+   */
+  const needsFinishMode =
+    !!workout &&
+    !workout.finishMode &&
+    !finishModeAsked &&
+    workout.format !== "amrap" &&
+    workout.format !== "flow";
+
+  /** Milliseconds left on a time-capped session, or null when it isn't one. */
+  const timeLeftMs =
+    workout?.finishMode === "time" && workout.timeCapMinutes
+      ? workout.timeCapMinutes * 60_000 - (now - (workout.startedAt ?? now))
+      : null;
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
@@ -178,6 +216,123 @@ export default function WorkoutPage() {
   const blocks = buildBlocks(workout);
   const completedCount = workout.plannedSets.filter((s) => s.completedAt).length;
   const totalCount = workout.plannedSets.length;
+
+  /**
+   * Log a value on one set, and carry it to the rest of that exercise.
+   *
+   * You almost never do 135, then 140, then 130 — you pick a weight and work
+   * it, so typing it once per set was pure retyping. Changing the load or the
+   * reps now fills the remaining *unlogged* sets of the same exercise with the
+   * same number. Sets you've already ticked are history and are left alone.
+   *
+   * It's a default, not a decision: the bar that appears underneath adjusts it
+   * up or down across those sets, or puts it back.
+   */
+  async function patchSetAndCarry(id: string, patch: Partial<PlannedSet>) {
+    if (!user || !workout) return;
+    const target = workout.plannedSets.find((s) => s.id === id);
+    const field: "actualWeight" | "actualReps" | null =
+      "actualWeight" in patch ? "actualWeight" : "actualReps" in patch ? "actualReps" : null;
+    if (!target || !field) return patchSet(id, patch);
+
+    const value = patch[field];
+    if (typeof value !== "number") return patchSet(id, patch);
+
+    // Later sets of the same exercise that you haven't logged yet.
+    const followers = workout.plannedSets.filter(
+      (s) =>
+        s.exerciseId === target.exerciseId &&
+        s.order > target.order &&
+        !s.completedAt &&
+        s.workSeconds == null
+    );
+
+    const before = new Map(followers.map((s) => [s.id, s[field] ?? null]));
+    const ids = new Set(followers.map((s) => s.id));
+    const updated = workout.plannedSets.map((s) =>
+      s.id === id ? { ...s, ...patch } : ids.has(s.id) ? { ...s, [field]: value } : s
+    );
+    setCarry(
+      followers.length
+        ? { exerciseId: target.exerciseId, field, value, ids, before }
+        : null
+    );
+    await commitSets(updated);
+  }
+
+  /** Nudge the carried value across the sets it was applied to. */
+  async function adjustCarry(delta: number) {
+    if (!workout || !carry) return;
+    const value = Math.max(0, carry.value + delta);
+    const updated = workout.plannedSets.map((s) =>
+      carry.ids.has(s.id) ? { ...s, [carry.field]: value } : s
+    );
+    setCarry({ ...carry, value });
+    await commitSets(updated);
+  }
+
+  /** Put the followers back to whatever they said before. */
+  async function undoCarry() {
+    if (!workout || !carry) return;
+    const updated = workout.plannedSets.map((s) =>
+      carry.ids.has(s.id) ? { ...s, [carry.field]: carry.before.get(s.id) ?? undefined } : s
+    );
+    setCarry(null);
+    await commitSets(updated);
+  }
+
+  async function commitSets(updated: PlannedSet[]) {
+    if (!user || !workout) return;
+    setWorkout({ ...workout, plannedSets: updated });
+    setSaving(true);
+    try {
+      await saveWorkout(user.uid, workout.id, { plannedSets: updated });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /**
+   * Remove one set. Renumbers what's left so the chips stay 1, 2, 3 rather
+   * than developing gaps.
+   */
+  /** Throw the whole session away — nothing logged is kept. */
+  async function discardWorkout() {
+    if (!user || !workout) return;
+    if (
+      !confirm(
+        `Delete "${workout.title}"? Anything you've logged in it will be lost.`
+      )
+    ) {
+      return;
+    }
+    if (workout.status === "planned") {
+      await recordTrainingSignal(user.uid, signalFor(workout, "deleted"));
+    }
+    await deleteWorkout(user.uid, workout.id);
+    goBack();
+  }
+
+  /** Record how this session should end. */
+  async function chooseFinishMode(mode: "sets" | "time", minutes?: number) {
+    if (!user || !workout) return;
+    const patch =
+      mode === "time"
+        ? { finishMode: mode, timeCapMinutes: minutes }
+        : { finishMode: mode };
+    setWorkout({ ...workout, ...patch });
+    setFinishModeAsked(true);
+    await saveWorkout(user.uid, workout.id, patch);
+  }
+
+  async function deleteSet(id: string) {
+    if (!workout) return;
+    const updated = workout.plannedSets
+      .filter((s) => s.id !== id)
+      .map((s, i) => ({ ...s, order: i + 1 }));
+    setCarry(null);
+    await commitSets(updated);
+  }
 
   async function patchSet(id: string, patch: Partial<PlannedSet>) {
     if (!user || !workout) return;
@@ -306,7 +461,21 @@ export default function WorkoutPage() {
             </div>
           </div>
           <div className="shrink-0 text-[16px] font-semibold tnum">
-            {fmtDuration(now - (workout.startedAt ?? now))}
+            {timeLeftMs != null ? (
+              <span
+                className={
+                  timeLeftMs <= 0
+                    ? "text-[color:var(--color-danger)]"
+                    : timeLeftMs < 5 * 60_000
+                    ? "text-[color:var(--color-warn)]"
+                    : undefined
+                }
+              >
+                {timeLeftMs <= 0 ? "time" : fmtDuration(timeLeftMs)}
+              </span>
+            ) : (
+              fmtDuration(now - (workout.startedAt ?? now))
+            )}
           </div>
         </div>
 
@@ -347,11 +516,46 @@ export default function WorkoutPage() {
             block={b}
             gifByExerciseId={gifByExerciseId}
             onPatch={patchSet}
+            onCarry={patchSetAndCarry}
+            onDelete={deleteSet}
             onToggle={toggleSetDone}
             onAddSetToExercise={addSetToExercise}
             onStartSetTimer={(s) => setSingleTimerSet(s)}
           />
         ))}
+
+        {needsFinishMode && (
+          <FinishModePrompt
+            estimate={Math.round(estimatePlannedMinutes(workout))}
+            onChoose={(mode, minutes) => void chooseFinishMode(mode, minutes)}
+          />
+        )}
+
+        {timeLeftMs != null && timeLeftMs <= 0 && !showFinish && (
+          <Card>
+            <div className="text-[17px] font-semibold tracking-[-0.01em]">
+              Time's up
+            </div>
+            <div className="mt-1 text-[15px] text-[color:var(--color-muted)]">
+              You set a {workout.timeCapMinutes}-minute cap. Finish here, or keep
+              going — the clock doesn't stop you.
+            </div>
+            <Button size="lg" block className="mt-3" onClick={() => setShowFinish(true)}>
+              Finish workout
+            </Button>
+          </Card>
+        )}
+
+        {carry && (
+          <CarryBar
+            field={carry.field}
+            value={carry.value}
+            count={carry.ids.size}
+            onAdjust={(d) => void adjustCarry(d)}
+            onUndo={() => void undoCarry()}
+            onDismiss={() => setCarry(null)}
+          />
+        )}
 
         {!showFinish ? (
           <Button size="lg" block onClick={() => setShowFinish(true)}>
@@ -377,6 +581,15 @@ export default function WorkoutPage() {
                 Finish
               </Button>
             </div>
+            {/* Throwing the session away lives behind the finish prompt rather
+                than in the header: it's rare, and it's the one action here you
+                can't undo. */}
+            <button
+              onClick={() => void discardWorkout()}
+              className="mt-3 w-full text-center text-[13px] text-[color:var(--color-danger)] active:opacity-60"
+            >
+              Delete this workout
+            </button>
           </Card>
         )}
       </div>
@@ -452,7 +665,127 @@ export default function WorkoutPage() {
   );
 }
 
-/** Bottom-sheet picker for work/rest seconds before starting the interval timer. */
+/**
+ * Asked once when you open a session: does it end when the list ends, or when
+ * the clock does?
+ *
+ * Offered rather than assumed because both are real ways to train and the app
+ * can't tell which today is. The time options bracket the session's own
+ * estimate, so the choice is "the usual", "a bit less" or "quick" rather than
+ * arithmetic.
+ */
+function FinishModePrompt({
+  estimate,
+  onChoose,
+}: {
+  estimate: number;
+  onChoose: (mode: "sets" | "time", minutes?: number) => void;
+}) {
+  // Round to a number someone would actually say, and keep the options apart.
+  const round5 = (n: number) => Math.max(10, Math.round(n / 5) * 5);
+  const options = [...new Set([round5(estimate), round5(estimate * 0.7), 20])]
+    .sort((a, b) => b - a)
+    .slice(0, 3);
+  return (
+    <Card>
+      <div className="text-[17px] font-semibold tracking-[-0.01em]">
+        How are you finishing?
+      </div>
+      <div className="mt-1 text-[15px] leading-snug text-[color:var(--color-muted)]">
+        Work through the whole list, or cap it and get as far as you get.
+      </div>
+      <Button size="lg" block className="mt-3" onClick={() => onChoose("sets")}>
+        When all the sets are done
+      </Button>
+      <div className="mt-2 flex gap-2">
+        {options.map((m) => (
+          <Button
+            key={m}
+            variant="secondary"
+            className="flex-1"
+            onClick={() => onChoose("time", m)}
+          >
+            {m} min
+          </Button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * The bar that appears after a weight or rep count is carried/**
+ * The bar that appears after a weight or rep count is carried to the rest of
+ * an exercise.
+ *
+ * It exists because the carry is a guess. Most of the time it's the right one
+ * and you ignore this; when it isn't, the answer is almost always "same again
+ * but a bit more" or "a bit less", so those are one tap rather than three
+ * edits. Weight steps in 5s and reps in 1s, which is how people actually
+ * change them.
+ */
+function CarryBar({
+  field,
+  value,
+  count,
+  onAdjust,
+  onUndo,
+  onDismiss,
+}: {
+  field: "actualWeight" | "actualReps";
+  value: number;
+  count: number;
+  onAdjust: (delta: number) => void;
+  onUndo: () => void;
+  onDismiss: () => void;
+}) {
+  const isWeight = field === "actualWeight";
+  const step = isWeight ? 5 : 1;
+  const unit = isWeight ? "lb" : "reps";
+  return (
+    <div className="flex items-center gap-2 rounded-[12px] bg-[color:var(--color-surface)] px-3 py-2">
+      <div className="min-w-0 flex-1 text-[13px] leading-snug text-[color:var(--color-muted)]">
+        <span className="tnum text-white">
+          {value} {unit}
+        </span>{" "}
+        set for the next {count} set{count === 1 ? "" : "s"}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <StepButton label={`−${step}`} onClick={() => onAdjust(-step)} />
+        <StepButton label={`+${step}`} onClick={() => onAdjust(step)} />
+        <button
+          onClick={onUndo}
+          className="px-2 text-[13px] text-[color:var(--color-accent)] active:opacity-60"
+        >
+          Undo
+        </button>
+        <button
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="grid size-7 place-items-center text-[color:var(--color-muted-2)] active:text-white"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StepButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="h-7 rounded-[8px] bg-[color:var(--color-surface-2)] px-2 text-[13px] font-medium tnum active:bg-[color:var(--color-surface-3)]"
+    >
+      {label}
+    </button>
+  );
+}
+
+/** Bottom-sheet picker for work/rest seconds before starting the interval timer. *//** Bottom-sheet picker for work/rest seconds before starting the interval timer. */
 function IntervalSetupSheet({
   onStart,
   onClose,
@@ -584,6 +917,7 @@ function SetRow({
   label,
   labelTint,
   onPatch,
+  onCarry,
   onToggle,
   onStartTimer,
 }: {
@@ -594,6 +928,8 @@ function SetRow({
   /** Chip tint for superset rows: member A = accent, member B = info. */
   labelTint?: "accent" | "info";
   onPatch: (patch: Partial<PlannedSet>) => void;
+  /** Same as onPatch, but fills the rest of the exercise too. */
+  onCarry?: (patch: Partial<PlannedSet>) => void;
   onToggle: () => void;
   onStartTimer?: () => void;
 }) {
@@ -632,13 +968,13 @@ function SetRow({
             <BareNumber
               ariaLabel="Weight (lb)"
               value={set.actualWeight ?? set.targetWeight ?? 0}
-              onChange={(v) => onPatch({ actualWeight: v })}
+              onChange={(v) => (onCarry ?? onPatch)({ actualWeight: v })}
               done={done}
             />
             <BareNumber
               ariaLabel="Reps"
               value={set.actualReps ?? set.targetReps}
-              onChange={(v) => onPatch({ actualReps: v })}
+              onChange={(v) => (onCarry ?? onPatch)({ actualReps: v })}
               done={done}
             />
           </>
@@ -910,6 +1246,8 @@ function BlockSection({
   block,
   gifByExerciseId,
   onPatch,
+  onCarry,
+  onDelete,
   onToggle,
   onAddSetToExercise,
   onStartSetTimer,
@@ -917,6 +1255,8 @@ function BlockSection({
   block: Block;
   gifByExerciseId: Map<string, string | undefined>;
   onPatch: (id: string, patch: Partial<PlannedSet>) => void;
+  onCarry: (id: string, patch: Partial<PlannedSet>) => void;
+  onDelete: (id: string) => void;
   onToggle: (set: PlannedSet) => void;
   onAddSetToExercise: (exerciseId: string) => void;
   onStartSetTimer: (set: PlannedSet) => void;
@@ -1013,14 +1353,16 @@ function BlockSection({
         <SetColumnLabels timed={block.sets.every((x) => x.workSeconds != null)} />
         <div className="pb-1">
           {block.sets.map((s, i) => (
-            <SetRow
-              key={s.id}
-              set={s}
-              index={i + 1}
-              onPatch={(patch) => onPatch(s.id, patch)}
-              onToggle={() => onToggle(s)}
-              onStartTimer={s.workSeconds != null ? () => onStartSetTimer(s) : undefined}
-            />
+            <SwipeToDelete key={s.id} onDelete={() => onDelete(s.id)}>
+              <SetRow
+                set={s}
+                index={i + 1}
+                onPatch={(patch) => onPatch(s.id, patch)}
+                onCarry={(patch) => onCarry(s.id, patch)}
+                onToggle={() => onToggle(s)}
+                onStartTimer={s.workSeconds != null ? () => onStartSetTimer(s) : undefined}
+              />
+            </SwipeToDelete>
           ))}
         </div>
         <button
@@ -1106,16 +1448,18 @@ function BlockSection({
       <SetColumnLabels />
       <div className="pb-2">
         {interleaved.map((step) => (
-          <SetRow
-            key={step.set.id}
-            set={step.set}
-            index={step.round + 1}
-            label={`${String.fromCharCode(65 + step.memberIndex)}${step.round + 1}`}
-            labelTint={step.memberIndex === 0 ? "accent" : "info"}
-            onPatch={(patch) => onPatch(step.set.id, patch)}
-            onToggle={() => onToggle(step.set)}
-            onStartTimer={step.set.workSeconds != null ? () => onStartSetTimer(step.set) : undefined}
-          />
+          <SwipeToDelete key={step.set.id} onDelete={() => onDelete(step.set.id)}>
+            <SetRow
+              set={step.set}
+              index={step.round + 1}
+              label={`${String.fromCharCode(65 + step.memberIndex)}${step.round + 1}`}
+              labelTint={step.memberIndex === 0 ? "accent" : "info"}
+              onPatch={(patch) => onPatch(step.set.id, patch)}
+              onCarry={(patch) => onCarry(step.set.id, patch)}
+              onToggle={() => onToggle(step.set)}
+              onStartTimer={step.set.workSeconds != null ? () => onStartSetTimer(step.set) : undefined}
+            />
+          </SwipeToDelete>
         ))}
       </div>
     </section>

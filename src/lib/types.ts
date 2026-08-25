@@ -122,6 +122,21 @@ export interface Workout {
    * — the same routine, two answers. See WorkoutTemplate.estimatedMinutes.
    */
   estimatedMinutes?: number;
+  /**
+   * How this session ends, chosen when you start it.
+   *
+   *   "sets" — the default. It's done when the list is done.
+   *   "time" — a clock, `timeCapMinutes` long. The header counts down instead
+   *            of up and prompts you to finish at zero. For the days you have
+   *            forty minutes and want to get as far as you get.
+   *
+   * Absent on sessions started before the choice existed, which behave as
+   * "sets".
+   */
+  finishMode?: "sets" | "time";
+  /** Minutes for `finishMode: "time"`. Distinct from capMinutes, which is the
+   *  AMRAP/flow clock and drives the runner rather than the header. */
+  timeCapMinutes?: number;
   /** AMRAP only — full rounds finished. This is the score we track over time. */
   roundsCompleted?: number;
   /** AMRAP only — reps into the next, unfinished round. */

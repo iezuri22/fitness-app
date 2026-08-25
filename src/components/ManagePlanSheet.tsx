@@ -38,7 +38,13 @@ export default function ManagePlanSheet({
   onChange: (nextSets: PlannedSet[]) => void | Promise<void>;
   onClose: () => void;
 }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * Where a newly picked exercise goes, as a block index. null means the
+   * picker is shut. Adding always appended before, which made "put the curls
+   * between the presses" a pick-then-drag-then-drop, so the position is now
+   * chosen up front by which "+" you tapped.
+   */
+  const [pickerAt, setPickerAt] = useState<number | null>(null);
   const [timerEditor, setTimerEditor] = useState<{
     setIds: string[];
     work: number;
@@ -117,12 +123,12 @@ export default function ManagePlanSheet({
   }
 
   async function addExercise(ex: Exercise) {
-    const maxOrder = Math.max(...workout.plannedSets.map((s) => s.order), 0);
+    const at = pickerAt;
     const newSet: PlannedSet = {
       id: crypto.randomUUID(),
       exerciseId: ex.id,
       exerciseName: ex.name,
-      order: maxOrder + 1,
+      order: 0, // renumbered below
       targetReps: ex.defaultReps ?? 10,
       targetWeight: ex.defaultWeight,
       setType: ex.isPT ? "PT/Rehab" : "Working",
@@ -130,8 +136,19 @@ export default function ManagePlanSheet({
       notes: "",
       completedAt: null,
     };
-    await onChange([...workout.plannedSets, newSet]);
-    setPickerOpen(false);
+    // Splice at the requested block boundary, then renumber the whole list so
+    // `order` stays dense and the runner's sequence matches what's on screen.
+    const target = at ?? blocks.length;
+    const before = blocks.slice(0, target).flatMap(setsOf);
+    const after = blocks.slice(target).flatMap(setsOf);
+    const next = [...before, newSet, ...after].map((s, i) => ({ ...s, order: i + 1 }));
+    await onChange(next);
+    setPickerAt(null);
+  }
+
+  /** Every set in a block, in order. */
+  function setsOf(b: Block): PlannedSet[] {
+    return b.kind === "exercise" ? b.sets : b.members.flatMap((m) => m.sets);
   }
 
   async function patchSet(setId: string, patch: Partial<PlannedSet>) {
@@ -235,6 +252,10 @@ export default function ManagePlanSheet({
             onDrop={() => void dragMoveTo(0)}
           />
 
+          {mode.kind === "idle" && draggingIndex == null && (
+            <InsertHere onClick={() => setPickerAt(0)} />
+          )}
+
           {blocks.map((block) => {
             const isSelected = selectedIndices.includes(block.index);
             const selectionOrder = isSelected
@@ -286,6 +307,9 @@ export default function ManagePlanSheet({
                   onDuplicateSet={duplicateSet}
                   onRemoveSet={removeSet}
                 />
+                {mode.kind === "idle" && draggingIndex == null && (
+                  <InsertHere onClick={() => setPickerAt(block.index + 1)} />
+                )}
                 <MoveSlot
                   visible={canBeTapMovedOver || canBeDragMovedOver}
                   isDragTarget={draggingIndex != null}
@@ -310,7 +334,7 @@ export default function ManagePlanSheet({
 
           <button
             type="button"
-            onClick={() => setPickerOpen(true)}
+            onClick={() => setPickerAt(blocks.length)}
             className="mt-4 w-full text-sm font-semibold text-[color:var(--color-accent)] border-2 border-dashed border-[color:var(--color-border)] rounded-xl py-4 hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-accent)]/5"
           >
             + Add exercise
@@ -329,12 +353,12 @@ export default function ManagePlanSheet({
           />
         )}
 
-        {pickerOpen && (
+        {pickerAt !== null && (
           <ExercisePicker
             exercises={exercises}
             existingExerciseIds={new Set(workout.plannedSets.map((s) => s.exerciseId))}
             onPick={addExercise}
-            onClose={() => setPickerOpen(false)}
+            onClose={() => setPickerAt(null)}
           />
         )}
 
@@ -363,6 +387,33 @@ function blockLabel(b: Block): string {
  *  OR when a drag-reorder is in progress. Accepts tap (from selection flow)
  *  and drop (from drag flow) — they route to different handlers because the
  *  source index comes from state, not the event itself. */
+/**
+ * A hairline with a "+" that drops a new exercise at this point in the order.
+ *
+ * Quiet by design — one of these sits between every pair of exercises, so they
+ * have to disappear into the gaps until you're looking for one. Hidden while
+ * selecting or dragging, when the same gaps mean "move here" instead.
+ */
+function InsertHere({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Add an exercise here"
+      className="group flex w-full items-center gap-2 py-1.5 active:opacity-60"
+    >
+      <span className="h-px flex-1 bg-[color:var(--color-separator)]" />
+      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[color:var(--color-surface-2)] text-[color:var(--color-muted-2)]">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </span>
+      <span className="h-px flex-1 bg-[color:var(--color-separator)]" />
+    </button>
+  );
+}
+
 function MoveSlot({
   visible,
   isDragTarget,
