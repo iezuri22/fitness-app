@@ -13,7 +13,7 @@ import {
   type AmrapResult,
 } from "../lib/db";
 import { signalFor } from "../lib/trainingSignals";
-import { Button, Card, Overlay, PageSkeleton, ProgressBar, Tag } from "../components/ui";
+import { Button, Card, Overlay, PageSkeleton, ProgressBar, Sheet, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
 import SwipeBack from "../components/SwipeBack";
 import RestTimer from "../components/RestTimer";
@@ -32,6 +32,7 @@ import { estimatePlannedMinutes } from "../lib/timeEstimate";
 import {
   buildBlocks,
   interleaveSupersetSets,
+  linkBlocksAsSuperset,
   type Block,
 } from "../lib/blocks";
 
@@ -54,6 +55,18 @@ export default function WorkoutPage() {
   const [showFinish, setShowFinish] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  /** Per-exercise ⋯ menu — the quick alternative to the full Manage sheet. */
+  const [blockMenu, setBlockMenu] = useState<{
+    exerciseId: string;
+    name: string;
+    index: number;
+    /** The exercise after this one, when it can be paired with it. */
+    nextName?: string;
+  } | null>(null);
+  /** When set, the exercise picker swaps this exercise instead of adding one. */
+  const [swapFor, setSwapFor] = useState<string | null>(null);
+  /** Block index a new exercise should land at, or null when the picker is shut. */
+  const [insertAt, setInsertAt] = useState<number | null>(null);
   /** Dismissed for this visit — asking again on every render would be a trap. */
   const [finishModeAsked, setFinishModeAsked] = useState(false);
   /** The last value carried to later sets, so it can be nudged or undone. */
@@ -133,6 +146,21 @@ export default function WorkoutPage() {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  /**
+   * Every entry path converges on this screen, so this is where "started" is
+   * guaranteed. Some routes (Recommend's Start, deep links) skip the review
+   * screen that stamps startedAt — without this, the session stays "planned"
+   * and the elapsed clock sits at 0:00 for the whole workout.
+   */
+  useEffect(() => {
+    if (!user || !workout || workout.status !== "planned") return;
+    const startedAt = workout.startedAt ?? Date.now();
+    setWorkout((w) => (w ? { ...w, status: "in_progress", startedAt } : w));
+    saveWorkout(user.uid, workout.id, { status: "in_progress", startedAt }).catch((e) =>
+      console.error("[Workout] could not mark started:", e)
+    );
+  }, [user, workout]);
 
   if (!workout) {
     return (
@@ -313,6 +341,50 @@ export default function WorkoutPage() {
     goBack();
   }
 
+  /**
+   * Add an exercise at a chosen point in the live session.
+   *
+   * Editing used to mean opening the Manage sheet, which puts a modal between
+   * you and the workout you're in the middle of. These do the two things you
+   * actually need mid-session — put an exercise somewhere, pair two of them —
+   * on the screen itself. Manage still exists for reordering and bulk work.
+   */
+  async function insertExercise(ex: Exercise, at: number) {
+    if (!workout) return;
+    const blocks = buildBlocks(workout);
+    const setsOf = (b: (typeof blocks)[number]) =>
+      b.kind === "exercise" ? b.sets : b.members.flatMap((m) => m.sets);
+    const fresh: PlannedSet = {
+      id: crypto.randomUUID(),
+      exerciseId: ex.id,
+      exerciseName: ex.name,
+      order: 0,
+      targetReps: ex.defaultReps ?? 10,
+      targetWeight: ex.defaultWeight,
+      setType: ex.isPT ? "PT/Rehab" : "Working",
+      restSeconds: 60,
+      workSeconds: isTimeBasedExercise(ex.name)
+        ? Math.round((defaultEstimatedMinutes(ex.name) * 60) / 1)
+        : undefined,
+      notes: "",
+      completedAt: null,
+    };
+    const before = blocks.slice(0, at).flatMap(setsOf);
+    const after = blocks.slice(at).flatMap(setsOf);
+    setInsertAt(null);
+    await commitSets(
+      [...before, fresh, ...after].map((x, i) => ({ ...x, order: i + 1 }))
+    );
+  }
+
+  /** Pair an exercise with the one after it, in one tap. */
+  async function supersetWithNext(blockIndex: number) {
+    if (!workout) return;
+    const next = linkBlocksAsSuperset(workout, blockIndex, blockIndex + 1);
+    if (next === workout.plannedSets) return;
+    await commitSets(next);
+  }
+
   /** Record how this session should end. */
   async function chooseFinishMode(mode: "sets" | "time", minutes?: number) {
     if (!user || !workout) return;
@@ -397,6 +469,29 @@ export default function WorkoutPage() {
     const nextSets = [...workout.plannedSets];
     nextSets.splice(lastIdx + 1, 0, newSet);
     await replaceSets(nextSets);
+  }
+
+  /**
+   * Swap an exercise mid-workout (machine taken, shoulder says no). Only the
+   * unlogged sets move to the new exercise — anything already ticked is
+   * history and stays attributed to what you actually did.
+   */
+  async function swapExercise(oldExerciseId: string, ex: Exercise) {
+    if (!workout) return;
+    const next = workout.plannedSets.map((s) =>
+      s.exerciseId === oldExerciseId && !s.completedAt
+        ? { ...s, exerciseId: ex.id, exerciseName: ex.name }
+        : s
+    );
+    await replaceSets(next);
+  }
+
+  /** Drop an exercise's unlogged sets; sets already ticked stay in the log. */
+  async function removeExercise(exerciseId: string) {
+    if (!workout) return;
+    await replaceSets(
+      workout.plannedSets.filter((s) => s.exerciseId !== exerciseId || !!s.completedAt)
+    );
   }
 
   async function addExerciseMid(ex: Exercise) {
@@ -510,19 +605,49 @@ export default function WorkoutPage() {
             <p className="mt-1 text-[15px] leading-snug">{workout.notes}</p>
           </Card>
         )}
-        {blocks.map((b) => (
-          <BlockSection
+        {blocks.map((b, i) => (
+          <div
             key={b.kind === "exercise" ? `ex:${b.exerciseId}` : `ss:${b.supersetGroupId}`}
-            block={b}
-            gifByExerciseId={gifByExerciseId}
-            onPatch={patchSet}
-            onCarry={patchSetAndCarry}
-            onDelete={deleteSet}
-            onToggle={toggleSetDone}
-            onAddSetToExercise={addSetToExercise}
-            onStartSetTimer={(s) => setSingleTimerSet(s)}
-          />
+          >
+            {/* Insert points, so an exercise can go where you want it without
+                opening a sheet over the workout you're in the middle of. */}
+            {i === 0 && <InsertPoint onClick={() => setInsertAt(0)} />}
+            <BlockSection
+              block={b}
+              gifByExerciseId={gifByExerciseId}
+              onPatch={patchSet}
+              onCarry={patchSetAndCarry}
+              onDelete={deleteSet}
+              onToggle={toggleSetDone}
+              onAddSetToExercise={addSetToExercise}
+              onStartSetTimer={(s) => setSingleTimerSet(s)}
+              onMenu={
+                b.kind === "exercise"
+                  ? () =>
+                      setBlockMenu({
+                        exerciseId: b.exerciseId,
+                        name: b.exerciseName,
+                        index: i,
+                        nextName:
+                          blocks[i + 1]?.kind === "exercise"
+                            ? (blocks[i + 1] as Extract<Block, { kind: "exercise" }>)
+                                .exerciseName
+                            : undefined,
+                      })
+                  : undefined
+              }
+            />
+            <InsertPoint onClick={() => setInsertAt(i + 1)} />
+          </div>
         ))}
+
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="w-full rounded-[14px] bg-[color:var(--color-surface)] py-3 text-[15px] text-[color:var(--color-accent)] active:opacity-70"
+        >
+          Add exercise
+        </button>
 
         {needsFinishMode && (
           <FinishModePrompt
@@ -612,6 +737,82 @@ export default function WorkoutPage() {
         />
       )}
 
+      {blockMenu && (
+        <Sheet label={blockMenu.name} onClose={() => setBlockMenu(null)}>
+          <div className="space-y-2 p-4 pb-8">
+            <div className="px-1 text-[16px] font-semibold tracking-[-0.01em]">
+              {blockMenu.name}
+            </div>
+            <Button
+              variant="secondary"
+              block
+              onClick={() => {
+                setSwapFor(blockMenu.exerciseId);
+                setBlockMenu(null);
+              }}
+            >
+              Swap exercise…
+            </Button>
+            {/* One tap, no sheet-within-a-sheet: pair this exercise with the
+                one after it. Creating a superset used to mean opening Manage,
+                tapping two blocks, then Link. */}
+            {blockMenu.nextName && (
+              <Button
+                variant="secondary"
+                block
+                onClick={() => {
+                  void supersetWithNext(blockMenu.index);
+                  setBlockMenu(null);
+                }}
+              >
+                Superset with {blockMenu.nextName}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              block
+              onClick={() => {
+                setBlockMenu(null);
+                setManageOpen(true);
+              }}
+            >
+              Reorder & more…
+            </Button>
+            <button
+              onClick={() => {
+                void removeExercise(blockMenu.exerciseId);
+                setBlockMenu(null);
+              }}
+              className="w-full py-2.5 text-center text-[15px] text-[color:var(--color-danger)] active:opacity-60"
+            >
+              Remove exercise
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {insertAt !== null && (
+        <ExercisePicker
+          title="Add exercise here"
+          exercises={exercises}
+          existingExerciseIds={new Set(workout.plannedSets.map((s) => s.exerciseId))}
+          onPick={(ex) => void insertExercise(ex, insertAt)}
+          onClose={() => setInsertAt(null)}
+        />
+      )}
+
+      {swapFor && (
+        <ExercisePicker
+          exercises={exercises}
+          existingExerciseIds={new Set(workout.plannedSets.map((s) => s.exerciseId))}
+          onPick={(ex) => {
+            void swapExercise(swapFor, ex);
+            setSwapFor(null);
+          }}
+          onClose={() => setSwapFor(null)}
+        />
+      )}
+
       {pickerOpen && (
         <ExercisePicker
           exercises={exercises}
@@ -666,6 +867,34 @@ export default function WorkoutPage() {
 }
 
 /**
+ * A hairline with a "+" between two exercises, on the live workout.
+ *
+ * Quiet enough to disappear into the gaps until you're looking for one — one
+ * sits between every pair — but it means adding an exercise where you want it
+ * no longer requires opening a sheet on top of the session you're doing.
+ */
+function InsertPoint({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Add an exercise here"
+      className="flex w-full items-center gap-2 py-1 active:opacity-60"
+    >
+      <span className="h-px flex-1 bg-[color:var(--color-separator)]" />
+      <span className="grid size-4 shrink-0 place-items-center rounded-full text-[color:var(--color-muted-2)]">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </span>
+      <span className="h-px flex-1 bg-[color:var(--color-separator)]" />
+    </button>
+  );
+}
+
+/**
+ * Asked once when you open a session/**
  * Asked once when you open a session: does it end when the list ends, or when
  * the clock does?
  *
@@ -1251,6 +1480,7 @@ function BlockSection({
   onToggle,
   onAddSetToExercise,
   onStartSetTimer,
+  onMenu,
 }: {
   block: Block;
   gifByExerciseId: Map<string, string | undefined>;
@@ -1260,6 +1490,7 @@ function BlockSection({
   onToggle: (set: PlannedSet) => void;
   onAddSetToExercise: (exerciseId: string) => void;
   onStartSetTimer: (set: PlannedSet) => void;
+  onMenu?: () => void;
 }) {
   // Tapping the thumbnail expands a full-width demo. Kept collapsed by default
   // so the set table stays the focus, but the demo is one tap away mid-set.
@@ -1337,6 +1568,20 @@ function BlockSection({
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
+          )}
+          {onMenu && (
+            <button
+              type="button"
+              onClick={onMenu}
+              aria-label={`Options for ${block.exerciseName}`}
+              className="grid size-8 shrink-0 place-items-center rounded-full text-[color:var(--color-muted)] active:opacity-60"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="5" cy="12" r="1.9" />
+                <circle cx="12" cy="12" r="1.9" />
+                <circle cx="19" cy="12" r="1.9" />
+              </svg>
+            </button>
           )}
         </div>
 

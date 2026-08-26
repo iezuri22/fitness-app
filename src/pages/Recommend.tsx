@@ -91,7 +91,9 @@ export default function Recommend() {
     setStarting(t.id);
     try {
       const id = await startWorkoutFromTemplate(user.uid, t);
-      nav(`/workout/${id}`);
+      // Through the review screen like every other start path — it stamps
+      // startedAt/in_progress and skips itself when there's nothing to confirm.
+      nav(`/workout/${id}/review`);
     } catch (e: unknown) {
       console.error("[Recommend] start failed:", e);
       setError(e instanceof Error ? e.message : String(e));

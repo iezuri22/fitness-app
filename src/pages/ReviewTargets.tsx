@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBack } from "../hooks/useBack";
 import { useAuth } from "../hooks/useAuth";
@@ -42,6 +42,37 @@ export default function ReviewTargets() {
   const back = useBack();
   const runnerHref = `/workout/${workoutId}?from=${encodeURIComponent(backTo)}`;
 
+  /**
+   * Mark a session started, then hand off to the runner.
+   *
+   * This screen has three ways into the runner — a benchmark or flow skips it,
+   * nothing-to-confirm skips it, and the confirm button goes through it — and
+   * only the last one used to stamp `startedAt`. The other two dropped you
+   * into a session the app still considered unstarted, so the elapsed clock
+   * sat at 0:00 for the whole workout.
+   *
+   * That went unnoticed while the review screen almost always had something to
+   * confirm. Now that the planner sets each session's weights from your last
+   * one, it usually doesn't, so the silent path became the common path.
+   */
+  const enterRunner = useCallback(
+    async (w: Workout | null) => {
+      if (user && w && w.status === "planned") {
+        try {
+          await saveWorkout(user.uid, w.id, {
+            status: "in_progress",
+            startedAt: w.startedAt ?? Date.now(),
+          });
+        } catch (e) {
+          // Never block the workout on the bookkeeping.
+          console.error("[ReviewTargets] could not mark started:", e);
+        }
+      }
+      nav(runnerHref, { replace: true });
+    },
+    [user, nav, runnerHref]
+  );
+
   useEffect(() => {
     if (!user || !workoutId) return;
     let alive = true;
@@ -59,14 +90,14 @@ export default function ReviewTargets() {
       // invalidate every past attempt — and a mobility flow progresses on
       // duration, not load. Straight to the runner.
       if (w.format === "amrap" || w.format === "flow") {
-        nav(runnerHref, { replace: true });
+        await enterRunner(w);
         return;
       }
 
       const sug = suggestTargets(w, recent);
       // Nothing to confirm — don't make them tap through an empty screen.
       if (!sug.some((s) => s.changed)) {
-        nav(runnerHref, { replace: true });
+        await enterRunner(w);
         return;
       }
       setSuggestions(sug);
@@ -74,7 +105,7 @@ export default function ReviewTargets() {
     return () => {
       alive = false;
     };
-  }, [user, workoutId, nav, runnerHref]);
+  }, [user, workoutId, enterRunner]);
 
   const changedCount = useMemo(
     () => suggestions.filter((s) => s.changed).length,
