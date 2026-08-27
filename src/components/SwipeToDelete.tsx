@@ -126,7 +126,7 @@ export default function SwipeToDelete({
       >
         {label}
       </button>
-      <div ref={surfaceRef} className="relative bg-[color:var(--color-surface)]">
+      <div ref={surfaceRef} className="relative bg-[color:var(--color-bg)]">
         {children}
       </div>
     </div>

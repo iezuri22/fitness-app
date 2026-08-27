@@ -644,7 +644,7 @@ export default function WorkoutPage() {
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          className="w-full rounded-[14px] bg-[color:var(--color-surface)] py-3 text-[15px] text-[color:var(--color-accent)] active:opacity-70"
+          className="w-full border-t border-[color:var(--color-separator)] py-3 text-[15px] text-[color:var(--color-accent)] active:opacity-60"
         >
           Add exercise
         </button>
@@ -1295,10 +1295,10 @@ function BareNumber({
       placeholder="—"
       onChange={(e) => onChange(Number(e.target.value))}
       onFocus={(e) => e.currentTarget.select()}
-      className={`h-9 min-w-0 flex-1 rounded-[10px] text-center text-[16px] font-medium tnum outline-none transition-colors ${
+      className={`h-9 min-w-0 flex-1 border-b bg-transparent text-center text-[16px] font-medium tnum outline-none transition-colors ${
         done
-          ? "bg-transparent text-[color:var(--color-muted)]"
-          : "bg-[color:var(--color-surface-2)] focus:bg-[color:var(--color-surface-3)]"
+          ? "border-transparent text-[color:var(--color-muted)]"
+          : "border-[color:var(--color-separator)] focus:border-[color:var(--color-accent)]"
       }`}
     />
   );
@@ -1341,10 +1341,10 @@ function DurationCell({
 }) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  const cls = `h-9 min-w-0 flex-1 rounded-[10px] text-center text-[16px] font-medium tnum outline-none transition-colors ${
+  const cls = `h-9 min-w-0 flex-1 border-b bg-transparent text-center text-[16px] font-medium tnum outline-none transition-colors ${
     done
-      ? "bg-transparent text-[color:var(--color-muted)]"
-      : "bg-[color:var(--color-surface-2)] focus:bg-[color:var(--color-surface-3)]"
+      ? "border-transparent text-[color:var(--color-muted)]"
+      : "border-[color:var(--color-separator)] focus:border-[color:var(--color-accent)]"
   }`;
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -1406,15 +1406,17 @@ function CollapsedBlock({
   onExpand: () => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-[14px] bg-[color:var(--color-surface)]">
+    <section className="py-1">
       <button
         type="button"
         onClick={onExpand}
         aria-expanded={false}
         aria-label={`${title} — done. Show sets`}
-        className="flex w-full items-center gap-3 p-3 text-left transition-colors active:bg-[color:var(--color-surface-2)]"
+        className="flex w-full items-center gap-3 rounded-[10px] px-1 py-2 text-left transition-colors active:bg-[color:var(--color-surface)]"
       >
-        <ExerciseGif name={thumbName} gifUrl={thumbUrl} size="mini" />
+        <span className="shrink-0 overflow-hidden rounded-full">
+          <ExerciseGif name={thumbName} gifUrl={thumbUrl} size="mini" />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[16px] leading-tight tracking-[-0.01em] text-[color:var(--color-muted)]">
             {title}
@@ -1532,20 +1534,20 @@ function BlockSection({
     }
 
     return (
-      <section className="overflow-hidden rounded-[14px] bg-[color:var(--color-surface)]">
+      <section className="py-1">
         {/* Card header — thumb (tap to expand demo), name, progress */}
-        <div className="flex items-center gap-3 p-3">
+        <div className="flex items-center gap-3 px-1 py-2">
           <button
             type="button"
             onClick={() => setDemoOpen((o) => !o)}
             aria-label={demoOpen ? "Hide demo" : "Show demo"}
             aria-expanded={demoOpen}
-            className="shrink-0 overflow-hidden rounded-[10px] active:opacity-70"
+            className="shrink-0 overflow-hidden rounded-full active:opacity-70"
           >
             <ExerciseGif
               name={block.exerciseName}
               gifUrl={gifByExerciseId.get(block.exerciseId)}
-              size="thumb"
+              size="mini"
             />
           </button>
           <div className="min-w-0 flex-1">
@@ -1640,8 +1642,8 @@ function BlockSection({
   }
 
   return (
-    <section className="overflow-hidden rounded-[14px] bg-[color:var(--color-surface)]">
-      <div className="p-3">
+    <section className="py-1">
+      <div className="px-1 py-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -1666,7 +1668,7 @@ function BlockSection({
           {block.members.map((m, mi) => (
             <div
               key={m.exerciseId}
-              className="flex min-w-0 items-center gap-2 rounded-[10px] bg-[color:var(--color-surface-2)] p-2"
+              className="flex min-w-0 items-center gap-2 py-1"
             >
               <span
                 className={`shrink-0 text-[13px] font-semibold ${
@@ -1677,11 +1679,17 @@ function BlockSection({
               >
                 {String.fromCharCode(65 + mi)}
               </span>
-              <ExerciseGif
-                name={m.exerciseName}
-                gifUrl={gifByExerciseId.get(m.exerciseId)}
-                size={demoOpen ? "card" : "mini"}
-              />
+              <span
+                className={`shrink-0 overflow-hidden ${
+                  demoOpen ? "rounded-[10px]" : "rounded-full"
+                }`}
+              >
+                <ExerciseGif
+                  name={m.exerciseName}
+                  gifUrl={gifByExerciseId.get(m.exerciseId)}
+                  size={demoOpen ? "card" : "mini"}
+                />
+              </span>
               <div className="line-clamp-2 min-w-0 text-[13px] leading-tight">
                 {m.exerciseName}
               </div>
