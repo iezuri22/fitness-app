@@ -33,6 +33,7 @@ import {
   buildBlocks,
   interleaveSupersetSets,
   linkBlocksAsSuperset,
+  renumber,
   type Block,
 } from "../lib/blocks";
 
@@ -450,12 +451,13 @@ export default function WorkoutPage() {
     const groupSets = workout.plannedSets.filter((s) => s.exerciseId === exerciseId);
     const last = groupSets[groupSets.length - 1];
     if (!last) return;
-    const maxOrder = Math.max(...workout.plannedSets.map((s) => s.order), 0);
     const newSet: PlannedSet = {
       id: crypto.randomUUID(),
       exerciseId: last.exerciseId,
       exerciseName: last.exerciseName,
-      order: maxOrder + 1,
+      // Position in the array decides sequence; renumber() below makes
+      // `order` agree with it.
+      order: 0,
       targetReps: last.targetReps,
       targetWeight: last.targetWeight,
       setType: last.setType,
@@ -468,7 +470,7 @@ export default function WorkoutPage() {
     const lastIdx = workout.plannedSets.findIndex((s) => s.id === last.id);
     const nextSets = [...workout.plannedSets];
     nextSets.splice(lastIdx + 1, 0, newSet);
-    await replaceSets(nextSets);
+    await replaceSets(renumber(nextSets));
   }
 
   /**

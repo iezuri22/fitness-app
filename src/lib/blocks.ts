@@ -32,6 +32,23 @@ export type Block =
       index: number;
     };
 
+/**
+ * Renumber `order` to match array position.
+ *
+ * `order` is what buildBlocks sorts by, and it groups CONTIGUOUS runs — so a
+ * set whose order disagrees with where it sits in the array gets sorted away
+ * from its own exercise and becomes a second block for that exercise further
+ * down the page. Adding a set used to splice it into the right slot and then
+ * stamp it with `maxOrder + 1`, which is the highest number in the workout:
+ * the set landed at the bottom of the screen and its exercise appeared twice.
+ *
+ * Anything that inserts, removes or moves sets should end by calling this, so
+ * array position stays the single source of truth for sequence.
+ */
+export function renumber(sets: PlannedSet[]): PlannedSet[] {
+  return sets.map((s, i) => (s.order === i + 1 ? s : { ...s, order: i + 1 }));
+}
+
 export function buildBlocks(w: Workout): Block[] {
   const blocks: Block[] = [];
   const sorted = [...w.plannedSets].sort((a, b) => a.order - b.order);
