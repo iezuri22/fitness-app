@@ -82,6 +82,8 @@ export default function PlanEditor({
       targetWeight: last.targetWeight,
       setType: last.setType,
       restSeconds: last.restSeconds,
+      // Keep the duration, or a timed set clones into a reps set.
+      workSeconds: last.workSeconds,
       // Clone the minute estimate from the previous set (falling back to the
       // smart default for this exercise if the previous set has none).
       estimatedMinutes:

@@ -72,6 +72,8 @@ export default function WorkoutPage() {
   const [finishModeAsked, setFinishModeAsked] = useState(false);
   /** The last value carried to later sets, so it can be nudged or undone. */
   const [carry, setCarry] = useState<{
+    /** The cell being typed into, so retyping it doesn't re-snapshot. */
+    targetId: string;
     exerciseId: string;
     field: "actualWeight" | "actualReps";
     value: number;
@@ -259,7 +261,8 @@ export default function WorkoutPage() {
    */
   async function patchSetAndCarry(id: string, patch: Partial<PlannedSet>) {
     if (!user || !workout) return;
-    const target = workout.plannedSets.find((s) => s.id === id);
+    const sets = workout.plannedSets;
+    const target = sets.find((s) => s.id === id);
     const field: "actualWeight" | "actualReps" | null =
       "actualWeight" in patch ? "actualWeight" : "actualReps" in patch ? "actualReps" : null;
     if (!target || !field) return patchSet(id, patch);
@@ -267,44 +270,80 @@ export default function WorkoutPage() {
     const value = patch[field];
     if (typeof value !== "number") return patchSet(id, patch);
 
-    // Later sets of the same exercise that you haven't logged yet.
-    const followers = workout.plannedSets.filter(
-      (s) =>
-        s.exerciseId === target.exerciseId &&
-        s.order > target.order &&
-        !s.completedAt &&
-        s.workSeconds == null
-    );
+    // Sets after this one in the SAME BLOCK. Scoping by exerciseId alone
+    // reached across the whole workout, so typing a weight into the first of
+    // two separate Bench Press blocks silently rewrote the second one too.
+    // A block is a contiguous run, which is exactly what buildBlocks groups.
+    const from = sets.findIndex((s) => s.id === id);
+    const followers: PlannedSet[] = [];
+    for (let i = from + 1; i < sets.length; i++) {
+      const s = sets[i];
+      if (s.exerciseId !== target.exerciseId) break;
+      if (s.supersetGroupId !== target.supersetGroupId) break;
+      // Timed work progresses on duration, and a logged set is history.
+      if (s.completedAt || s.workSeconds != null) continue;
+      followers.push(s);
+    }
 
-    const before = new Map(followers.map((s) => [s.id, s[field] ?? null]));
+    // Reuse the existing snapshot while the same cell is being retyped.
+    // Rebuilding it per keystroke meant "before" captured the half-typed
+    // number — type 165 over 155 and Undo restored 16.
+    const sameEdit =
+      carry !== null && carry.targetId === id && carry.field === field;
+    const before = sameEdit ? new Map(carry.before) : new Map<string, number | null>();
+    for (const s of followers) {
+      if (!before.has(s.id)) before.set(s.id, s[field] ?? null);
+    }
+
     const ids = new Set(followers.map((s) => s.id));
-    const updated = workout.plannedSets.map((s) =>
+    const updated = sets.map((s) =>
       s.id === id ? { ...s, ...patch } : ids.has(s.id) ? { ...s, [field]: value } : s
     );
     setCarry(
       followers.length
-        ? { exerciseId: target.exerciseId, field, value, ids, before }
+        ? { targetId: id, exerciseId: target.exerciseId, field, value, ids, before }
         : null
     );
     await commitSets(updated);
   }
 
-  /** Nudge the carried value across the sets it was applied to. */
+  /**
+   * Sets a carry may still write to.
+   *
+   * Re-derived at apply time, never trusted from the snapshot: a set ticked
+   * off after the carry was captured is logged work, and the ± and Undo
+   * buttons were rewriting it. Undo was worse than ±, restoring a value the
+   * set never had — or clearing it outright.
+   */
+  function liveCarryIds(): Set<string> {
+    if (!workout || !carry) return new Set();
+    return new Set(
+      workout.plannedSets
+        .filter((s) => carry.ids.has(s.id) && !s.completedAt)
+        .map((s) => s.id)
+    );
+  }
+
+  const liveCarryCount = carry ? liveCarryIds().size : 0;
+
+  /** Nudge the carried value across the sets it still applies to. */
   async function adjustCarry(delta: number) {
     if (!workout || !carry) return;
+    const live = liveCarryIds();
     const value = Math.max(0, carry.value + delta);
     const updated = workout.plannedSets.map((s) =>
-      carry.ids.has(s.id) ? { ...s, [carry.field]: value } : s
+      live.has(s.id) ? { ...s, [carry.field]: value } : s
     );
-    setCarry({ ...carry, value });
+    setCarry({ ...carry, value, ids: live });
     await commitSets(updated);
   }
 
-  /** Put the followers back to whatever they said before. */
+  /** Put the still-unlogged followers back to whatever they said before. */
   async function undoCarry() {
     if (!workout || !carry) return;
+    const live = liveCarryIds();
     const updated = workout.plannedSets.map((s) =>
-      carry.ids.has(s.id) ? { ...s, [carry.field]: carry.before.get(s.id) ?? undefined } : s
+      live.has(s.id) ? { ...s, [carry.field]: carry.before.get(s.id) ?? undefined } : s
     );
     setCarry(null);
     await commitSets(updated);
@@ -462,6 +501,9 @@ export default function WorkoutPage() {
       targetWeight: last.targetWeight,
       setType: last.setType,
       restSeconds: last.restSeconds,
+      // Carry the duration: without it, adding a set to a rowing or treadmill
+      // block turned the new one into a reps-and-weight set.
+      workSeconds: last.workSeconds,
       estimatedMinutes:
         last.estimatedMinutes ?? defaultEstimatedMinutes(last.exerciseName),
       notes: "",
@@ -673,11 +715,14 @@ export default function WorkoutPage() {
           </Card>
         )}
 
-        {carry && (
+        {/* Counted live, not from the snapshot — tick two of three carried sets
+            off and the bar used to still offer to change all three. At zero it
+            has nothing left to act on, so it goes away. */}
+        {carry && liveCarryCount > 0 && (
           <CarryBar
             field={carry.field}
             value={carry.value}
-            count={carry.ids.size}
+            count={liveCarryCount}
             onAdjust={(d) => void adjustCarry(d)}
             onUndo={() => void undoCarry()}
             onDismiss={() => setCarry(null)}
@@ -1288,14 +1333,26 @@ function BareNumber({
   done: boolean;
   ariaLabel: string;
 }) {
+  // An empty box means "still typing", not "zero". Committing every keystroke
+  // meant backspacing a cell clear wrote Number("") === 0 — and the carry then
+  // pushed that 0 onto every later set of the exercise. So emptiness is held
+  // here and never committed; leave the field and the number comes back.
+  const [draft, setDraft] = useState<string | null>(null);
+
   return (
     <input
       type="number"
       inputMode="decimal"
       aria-label={ariaLabel}
-      value={value || ""}
+      value={draft ?? (value || "")}
       placeholder="—"
-      onChange={(e) => onChange(Number(e.target.value))}
+      onChange={(e) => {
+        const next = e.target.value;
+        if (next === "") return setDraft("");
+        setDraft(null);
+        onChange(Number(next));
+      }}
+      onBlur={() => setDraft(null)}
       onFocus={(e) => e.currentTarget.select()}
       className={`h-9 min-w-0 flex-1 border-b bg-transparent text-center text-[16px] font-medium tnum outline-none transition-colors ${
         done
