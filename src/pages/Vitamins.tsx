@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import {
   getSupplementLog,
   getSupplements,
   listSupplementLogs,
-  saveSupplementLog,
+  setSupplementTaken,
   saveSupplements,
   type SupplementItem,
 } from "../lib/db";
@@ -32,10 +34,17 @@ const HISTORY_DAYS = 14;
  */
 export default function Vitamins() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.supplements(uid));
   const [items, setItems] = useState<SupplementItem[] | null>(null);
   const [taken, setTaken] = useState<string[]>([]);
   const [history, setHistory] = useState<Record<string, string[]>>({});
   const [editing, setEditing] = useState(false);
+  // A background refresh re-runs the load below; it mustn't replace the list
+  // while it's being edited, or a rename in progress is lost.
+  const editingRef = useRef(false);
+  editingRef.current = editing;
 
   const today = todayStr();
 
@@ -49,22 +58,24 @@ export default function Vitamins() {
         listSupplementLogs(user.uid, addDays(today, -(HISTORY_DAYS - 1)), today),
       ]);
       if (!alive) return;
-      setItems(defs);
+      if (!editingRef.current) setItems(defs);
       setTaken(log);
       setHistory(hist);
     })();
     return () => {
       alive = false;
     };
-  }, [user, today]);
+  }, [user, today, dataVersion]);
 
   const toggle = useCallback(
     (id: string) => {
       if (!user) return;
       setTaken((prev) => {
-        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+        const on = !prev.includes(id);
+        const next = on ? [...prev, id] : prev.filter((x) => x !== id);
         setHistory((h) => ({ ...h, [today]: next }));
-        void saveSupplementLog(user.uid, today, next);
+        // One item, merged on the server — see setSupplementTaken.
+        void setSupplementTaken(user.uid, today, id, on);
         return next;
       });
     },

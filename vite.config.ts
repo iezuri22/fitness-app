@@ -85,6 +85,22 @@ export default defineConfig({
         globIgnores: ['gifs/**'],
         runtimeCaching: [
           {
+            // Stills for list rows (scripts/make-thumbs.sh). Their own cache:
+            // sharing the demos' 600-entry limit, ~420 stills would evict the
+            // demos you saved for offline. Listed first — first match wins.
+            urlPattern: /\/gifs\/thumbs\/[^/]+\.webp$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'exercise-stills',
+              expiration: {
+                maxEntries: 1000,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+                purgeOnQuotaError: true,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // Every demo you actually look at is kept, so it works offline
             // afterwards (gym wifi is a lottery). They're content-addressed by
             // filename and never mutate, so CacheFirst is safe — a changed
@@ -112,11 +128,12 @@ export default defineConfig({
         // ~500kB. Keeps the app code hot-cacheable and silences the >500kB
         // chunk warning.
         manualChunks: {
+          // Storage is left out on purpose: it's imported on first upload, so
+          // it gets its own chunk instead of riding along on every app open.
           firebase: [
             'firebase/app',
             'firebase/auth',
             'firebase/firestore',
-            'firebase/storage',
           ],
           react: ['react', 'react-dom', 'react-router-dom'],
         },

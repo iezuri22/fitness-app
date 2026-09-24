@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import { listTemplates, listWorkoutsInRange, startWorkoutFromTemplate } from "../lib/db";
 import {
   Button,
@@ -36,6 +38,9 @@ const TIMES: { value: TimeKey; label: string }[] = [
  */
 export default function Recommend() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.templates(uid), cacheKey.workouts(uid));
   const nav = useNavigate();
   const [templates, setTemplates] = useState<WorkoutTemplate[] | undefined>(undefined);
   const [recent, setRecent] = useState<Awaited<ReturnType<typeof listWorkoutsInRange>>>([]);
@@ -69,7 +74,7 @@ export default function Recommend() {
     return () => {
       alive = false;
     };
-  }, [user, today]);
+  }, [user, today, dataVersion]);
 
   const rec = useMemo(() => {
     if (!templates) return null;

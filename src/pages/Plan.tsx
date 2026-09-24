@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import {
-  deleteWorkout,
   clearTrainingSignals,
   getTrainingSignals,
   getWeeklyGoals,
@@ -10,7 +11,8 @@ import {
   saveWorkout as saveWorkoutDoc,
   listTemplates,
   listWorkoutsInRange,
-  saveWeeklyGoals,
+  saveWeeklyGoal,
+  deleteWorkoutIfUnchanged,
   saveWorkout,
   startWorkoutFromTemplate,
 } from "../lib/db";
@@ -59,8 +61,18 @@ const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satu
  *
  * `weekOffset` shifts the Mon–Sun window: 0 = this week, 1 = next, -1 = last.
  */
+const CHANGED_ELSEWHERE =
+  "That session was started or finished on another device, so it's been kept. The week has been refreshed.";
+
 export default function Plan() {
   const { user } = useAuth();
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(
+    cacheKey.workouts(uid),
+    cacheKey.goals(uid),
+    cacheKey.templates(uid),
+    cacheKey.signals(uid)
+  );
   const nav = useNavigate();
   const [weekOffset, setWeekOffset] = useState(0);
   const [workouts, setWorkouts] = useState<Workout[] | null>(null);
@@ -136,14 +148,15 @@ export default function Plan() {
       // Two different lookbacks. A fortnight decides what NOT to repeat; two
       // months is what the preferences are read from, because an opinion needs
       // more than one week of evidence behind it.
-      const prior = await listWorkoutsInRange(
-        user.uid,
-        addDays(start, -14),
-        addDays(start, -1)
-      );
-      const [history, signals] = await Promise.all([
-        listWorkoutsInRange(user.uid, addDays(start, -56), addDays(start, -1)),
-        getTrainingSignals(user.uid),
+      // Planning decides from what's already scheduled, so it reads the
+      // server's copy — the week on screen may have been painted from the
+      // phone before another device added to it.
+      const fresh = { fresh: true };
+      const [existing, prior, history, signals] = await Promise.all([
+        listWorkoutsInRange(user.uid, start, end, fresh),
+        listWorkoutsInRange(user.uid, addDays(start, -14), addDays(start, -1), fresh),
+        listWorkoutsInRange(user.uid, addDays(start, -56), addDays(start, -1), fresh),
+        getTrainingSignals(user.uid, fresh),
       ]);
       const preferences = derivePreferences({
         workouts: history,
@@ -153,7 +166,7 @@ export default function Plan() {
       });
       const { items, shortfalls } = autoPlanWeek({
         days,
-        existing: workouts ?? [],
+        existing,
         goals,
         templates,
         recentNames: new Set(prior.map((w) => w.title)),
@@ -219,12 +232,18 @@ export default function Plan() {
   async function switchWorkout(w: Workout, template: WorkoutTemplate) {
     if (!user) return;
     setSwitching(null);
+    // The row may have been drawn from the phone's copy; if the session was
+    // started or finished elsewhere since, leave it — it's a record now.
+    if (!(await deleteWorkoutIfUnchanged(user.uid, w.id, w.status))) {
+      alert(CHANGED_ELSEWHERE);
+      await load();
+      return;
+    }
     setWorkouts((prev) => (prev ?? []).filter((x) => x.id !== w.id));
     // Swapping is a softer no than deleting, but still a no.
     if (w.status === "planned") {
       await recordTrainingSignal(user.uid, signalFor(w, "replaced"));
     }
-    await deleteWorkout(user.uid, w.id);
     await startWorkoutFromTemplate(user.uid, template, {
       date: w.date,
       slot: w.slot ?? "strength",
@@ -234,9 +253,9 @@ export default function Plan() {
 
   async function updateGoal(kind: WorkoutKind, delta: number) {
     if (!user) return;
-    const next = { ...goals, [kind]: Math.max(0, Math.min(14, goals[kind] + delta)) };
-    setGoals(next);
-    await saveWeeklyGoals(user.uid, next);
+    const value = Math.max(0, Math.min(14, goals[kind] + delta));
+    setGoals({ ...goals, [kind]: value });
+    await saveWeeklyGoal(user.uid, kind, value);
   }
 
   useEffect(() => {
@@ -244,16 +263,29 @@ export default function Plan() {
     load();
   }, [load]);
 
+  // A background refresh found newer data: re-read in place. Not through the
+  // effect above, which blanks the week to a skeleton first.
+  const seenVersion = useRef(dataVersion);
+  useEffect(() => {
+    if (seenVersion.current === dataVersion) return;
+    seenVersion.current = dataVersion;
+    void load();
+  }, [dataVersion, load]);
+
   async function removeWorkout(w: Workout) {
     if (!user) return;
     if (!confirm(`Remove "${w.title}" from ${prettyDay(w.date)}?`)) return;
     setWorkouts((prev) => (prev ?? []).filter((x) => x.id !== w.id));
+    if (!(await deleteWorkoutIfUnchanged(user.uid, w.id, w.status))) {
+      alert(CHANGED_ELSEWHERE);
+      await load();
+      return;
+    }
     // Deleting a session you never started is the clearest "not this" there
     // is, and a hard delete would otherwise leave nothing to learn from.
     if (w.status === "planned") {
       await recordTrainingSignal(user.uid, signalFor(w, "deleted"));
     }
-    await deleteWorkout(user.uid, w.id);
   }
 
   const byDate = useMemo(() => {

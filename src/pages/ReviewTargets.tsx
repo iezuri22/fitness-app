@@ -79,7 +79,8 @@ export default function ReviewTargets() {
     (async () => {
       const [w, recent] = await Promise.all([
         getWorkout(user.uid, workoutId),
-        listWorkouts(user.uid, { limit: 60 }),
+        // Fresh: suggestions come from this history and become targets.
+        listWorkouts(user.uid, { limit: 60, fresh: true }),
       ]);
       if (!alive) return;
       setWorkout(w);

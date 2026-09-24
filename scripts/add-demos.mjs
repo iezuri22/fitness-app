@@ -184,6 +184,10 @@ added.forEach((a) => console.log(`    ${a.exercise}  →  ${a.dest}`));
 
 // ---------- Build + deploy ----------
 console.log("\n🔨  Building…\n");
+// Every demo needs its small still for list rows (see scripts/make-thumbs.sh).
+if (spawnSync("npm", ["run", "thumbs"], { stdio: "inherit" }).status !== 0) {
+  console.error("\nCouldn't make the list stills (needs cwebp: brew install webp). Demos will still show, at full size.\n");
+}
 if (spawnSync("npm", ["run", "build"], { stdio: "inherit" }).status !== 0) {
   console.error("\nBuild failed — nothing deployed. The demos are still bundled locally.\n");
   process.exit(1);

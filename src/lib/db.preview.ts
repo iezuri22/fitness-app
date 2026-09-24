@@ -28,7 +28,7 @@ import { NOTION_EXERCISES } from "./notionExercises";
 import { GYM_EXERCISES } from "./gymExercises";
 import { HOME_EXERCISES } from "./homeExercises";
 import { todayStr } from "./dates";
-import { cacheKey, cachedRead, invalidate } from "./dbCache";
+import { cacheKey, cachedRead, invalidate, type Source } from "./dbCache";
 
 /* ------------------------------- Fixtures -------------------------------- */
 
@@ -318,12 +318,16 @@ let goals: WeeklyGoals = normalizeGoals({ gym: 3, amrap: 1, home: 1, pt: 4, clas
 // undefined has no JSON representation, so void-returning calls pass straight
 // through rather than blowing up in JSON.parse.
 const clone = <T,>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
-const wait = <T,>(v: T): Promise<T> =>
-  new Promise((r) => setTimeout(() => r(clone(v)), 120));
+// A server round trip, or — for a read dbCache sends to the device cache —
+// IndexedDB, which answers in a few milliseconds.
+const wait = <T,>(v: T, from: Source = "server"): Promise<T> =>
+  from === "cache"
+    ? Promise.resolve(clone(v))
+    : new Promise((r) => setTimeout(() => r(clone(v)), 120));
 
 export async function listExercises(uid: string) {
-  return cachedRead(cacheKey.exercises(uid), () =>
-    wait([...exercises].sort((a, b) => a.name.localeCompare(b.name)))
+  return cachedRead(cacheKey.exercises(uid), (from) =>
+    wait([...exercises].sort((a, b) => a.name.localeCompare(b.name)), from)
   );
 }
 export async function createExercise(
@@ -353,12 +357,6 @@ export async function uploadExerciseGif() {
 export async function removeExerciseGif() {
   return wait(undefined as void);
 }
-export function countMissingCatalog() {
-  return 0;
-}
-export async function importMissingNotionExercises() {
-  return wait(0);
-}
 
 export async function getWorkout(_uid: string, id: string) {
   return wait(workouts.find((w) => w.id === id) ?? null);
@@ -372,9 +370,9 @@ export async function getWorkoutsByDate(_uid: string, date: string) {
   return wait(workouts.filter((w) => w.date === date).sort((a, b) => rank(a) - rank(b)));
 }
 export async function listWorkouts(uid: string, opts: { limit?: number } = {}) {
-  return cachedRead(cacheKey.workoutList(uid, opts.limit ?? 0), () => {
+  return cachedRead(cacheKey.workoutList(uid, opts.limit ?? 0), (from) => {
     const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date));
-    return wait(opts.limit ? sorted.slice(0, opts.limit) : sorted);
+    return wait(opts.limit ? sorted.slice(0, opts.limit) : sorted, from);
   });
 }
 export async function createWorkout(
@@ -409,6 +407,16 @@ export async function clearTrainingSignals(userId: string, templateName: string)
   return wait(undefined as void);
 }
 
+export async function deleteWorkoutIfUnchanged(
+  userId: string,
+  id: string,
+  expectedStatus: Workout["status"]
+) {
+  const w = workouts.find((x) => x.id === id);
+  if (w && w.status !== expectedStatus) return wait(false);
+  await deleteWorkout(userId, id);
+  return true;
+}
 export async function deleteWorkout(userId: string, id: string) {
   const i = workouts.findIndex((w) => w.id === id);
   if (i >= 0) workouts.splice(i, 1);
@@ -474,6 +482,11 @@ export async function saveSupplementLog(_uid: string, date: string, taken: strin
   supplementLogs[date] = taken;
   return wait(undefined as void);
 }
+export async function setSupplementTaken(_uid: string, date: string, id: string, taken: boolean) {
+  const cur = supplementLogs[date] ?? [];
+  supplementLogs[date] = taken ? [...new Set([...cur, id])] : cur.filter((x) => x !== id);
+  return wait(undefined as void);
+}
 export async function listSupplementLogs(_uid: string, start: string, end: string) {
   const out: Record<string, string[]> = {};
   for (const [d, v] of Object.entries(supplementLogs)) {
@@ -487,6 +500,10 @@ export async function getWeeklyGoals() {
 }
 export async function saveWeeklyGoals(_uid: string, next: WeeklyGoals) {
   goals = normalizeGoals(next);
+  return wait(undefined as void);
+}
+export async function saveWeeklyGoal(_uid: string, kind: keyof WeeklyGoals, value: number) {
+  goals = normalizeGoals({ ...goals, [kind]: value });
   return wait(undefined as void);
 }
 
@@ -506,8 +523,8 @@ export async function getAmrapHistory() {
 }
 
 export async function listTemplates(uid: string) {
-  return cachedRead(cacheKey.templates(uid), () =>
-    wait([...templates].sort((a, b) => a.name.localeCompare(b.name)))
+  return cachedRead(cacheKey.templates(uid), (from) =>
+    wait([...templates].sort((a, b) => a.name.localeCompare(b.name)), from)
   );
 }
 export async function getTemplate(_uid: string, id: string) {
@@ -577,8 +594,8 @@ export async function startWorkoutFromTemplate(
 }
 
 export async function listWorkoutsInRange(uid: string, start: string, end: string) {
-  return cachedRead(cacheKey.workoutRange(uid, start, end), () =>
-    wait(workouts.filter((w) => w.date >= start && w.date <= end))
+  return cachedRead(cacheKey.workoutRange(uid, start, end), (from) =>
+    wait(workouts.filter((w) => w.date >= start && w.date <= end), from)
   );
 }
 

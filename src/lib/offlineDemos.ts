@@ -10,10 +10,12 @@
  * in it, and Settings can preload a whole week. Fetching is all it takes — the
  * SW route stores the response on the way through.
  */
-import { findGifForName, secondFrameUrl } from "./exerciseGifs";
+import { findGifForName, secondFrameUrl, thumbUrl } from "./exerciseGifs";
 import type { PlannedSet, Workout } from "./types";
 
 export const DEMO_CACHE = "exercise-demos";
+/** List-row stills live apart from the demos (vite.config.ts explains why). */
+export const STILL_CACHE = "exercise-stills";
 
 /** Every demo URL a set list needs, including both frames of 2-frame demos. */
 export function demoUrlsForSets(
@@ -114,16 +116,22 @@ export async function prefetchDemos(
   const { concurrency = 4, onProgress } = opts;
 
   let cache: Cache | null = null;
+  let stills: Cache | null = null;
   try {
-    if ("caches" in window) cache = await caches.open(DEMO_CACHE);
+    if ("caches" in window) {
+      cache = await caches.open(DEMO_CACHE);
+      stills = await caches.open(STILL_CACHE);
+    }
   } catch {
     cache = null;
   }
 
-  // Only fetch what's missing.
+  // Only fetch what's missing — a demo saved before stills existed still
+  // needs its still.
   const missing: string[] = [];
   for (const u of urls) {
-    if (cache && (await cache.match(u))) continue;
+    const still = thumbUrl(u);
+    if (cache && (await cache.match(u)) && (!still || !stills || (await stills.match(still)))) continue;
     missing.push(u);
   }
 
@@ -137,11 +145,19 @@ export async function prefetchDemos(
       const url = queue.shift();
       if (!url) return;
       try {
-        const res = await fetch(url, { cache: "no-cache" });
+        const have = cache ? await cache.match(url) : undefined;
+        const res = have ?? (await fetch(url, { cache: "no-cache" }));
         // Store explicitly too: if the SW isn't controlling this page yet
         // (first load after install) the route wouldn't have run.
-        if (cache && res.ok) await cache.put(url, res.clone());
+        if (cache && !have && res.ok) await cache.put(url, res.clone());
         if (!res.ok) failed++;
+        // List rows draw the still, so save it with the demo. Not counted —
+        // "demos saved" means demos — and a missing still just falls back.
+        const still = thumbUrl(url);
+        if (stills && still && !(await stills.match(still))) {
+          const t = await fetch(still).catch(() => null);
+          if (t?.ok) await stills.put(still, t);
+        }
       } catch {
         failed++;
       } finally {
@@ -156,8 +172,17 @@ export async function prefetchDemos(
   return { cached: done - failed, failed };
 }
 
-/** Fire-and-forget warm-up. Used when a workout screen opens. */
+/**
+ * Fire-and-forget warm-up. Used when a workout screen opens.
+ *
+ * Waits until the screen has settled: started immediately, it downloaded
+ * every demo in the session — tens of MB — in the same moment the runner was
+ * trying to load its own data and paint, on the gym's connection.
+ */
 export function prefetchInBackground(urls: string[]): void {
   if (!urls.length || !navigator.onLine) return;
-  void prefetchDemos(urls, { concurrency: 3 });
+  const start = () => void prefetchDemos(urls, { concurrency: 2 });
+  // Safari only shipped requestIdleCallback recently; older iOS falls back to a delay.
+  if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(start, { timeout: 4000 });
+  else setTimeout(start, 2500);
 }

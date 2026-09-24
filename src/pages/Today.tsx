@@ -13,6 +13,8 @@ import {
   Stat,
 } from "../components/ui";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import SupplementCard from "../components/SupplementCard";
 import { listTemplates, listWorkoutsInRange } from "../lib/db";
 import { prettyDate, todayStr, weekRange } from "../lib/dates";
@@ -39,6 +41,9 @@ import {
  */
 export default function Today() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.templates(uid), cacheKey.workouts(uid));
   const nav = useNavigate();
   const [recentWorkouts, setRecentWorkouts] = useState<Workout[] | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +82,7 @@ export default function Today() {
     return () => {
       alive = false;
     };
-  }, [user, today]);
+  }, [user, today, dataVersion]);
 
   const todayWorkouts = useMemo(
     () => (recentWorkouts ?? []).filter((w) => w.date === today),

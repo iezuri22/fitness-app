@@ -1,7 +1,11 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { initializeFirestore, type Firestore } from "firebase/firestore";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -37,12 +41,14 @@ export const auth: Auth = getAuth(app);
  */
 export const db: Firestore = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
+  // Keep Firestore's data in IndexedDB so an app open can paint from the phone
+  // instead of waiting on the network (dbCache asks the device first, then the
+  // server). It also means an offline gym still shows your plan. Multi-tab so
+  // a second tab or the installed PWA beside Safari don't fight over the lock.
+  // If IndexedDB isn't available (some private modes) Firestore falls back to
+  // memory on its own.
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 
-/**
- * Firebase Storage — used for user-uploaded exercise GIFs/PNGs.
- * Requires Storage to be enabled in the Firebase console and `storage.rules`
- * to be deployed. If the bucket isn't set up, uploads will fail with a clear
- * error that the UI surfaces to the user.
- */
-export const storage: FirebaseStorage = getStorage(app);
+// Firebase Storage (demo uploads) is imported on first use in db.ts, so it
+// isn't part of what every app open has to download.

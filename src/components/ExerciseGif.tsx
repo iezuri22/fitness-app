@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { findGifForName, secondFrameUrl } from "../lib/exerciseGifs";
+import { findGifForName, secondFrameUrl, thumbUrl } from "../lib/exerciseGifs";
 
 /**
  * Renders an exercise demo GIF. Uses (in priority order):
@@ -25,6 +25,12 @@ export default function ExerciseGif({
 }) {
   const resolved = gifUrl || findGifForName(name);
   const [errored, setErrored] = useState(false);
+  // Small tiles draw a still (scripts/make-thumbs.sh) instead of the full demo:
+  // ~5 KB instead of ~340 KB, and 3.6 MB for the worst one. If a still is
+  // missing (a demo added without re-running the script, or an uploaded one),
+  // fall back to the full file rather than the placeholder.
+  // Keyed by URL so a tile reused for another exercise tries that one's still.
+  const [failedThumb, setFailedThumb] = useState<string | null>(null);
 
   const dims =
     size === "hero"
@@ -58,23 +64,30 @@ export default function ExerciseGif({
     );
   }
 
-  // Two-frame photo demos (gym machines/barbells) animate by cross-fading the
-  // start and end positions — same read as the bundled GIFs, no encoder needed.
-  const frame2 = secondFrameUrl(resolved);
-
   // Small tiles crop to fill so the lifter isn't a speck between letterbox
   // bars; the large views keep the whole frame so nothing gets cut off.
   const big = size === "hero" || size === "banner";
   const fit = big ? "object-contain" : "object-cover";
   const imgCls = `absolute inset-0 w-full h-full ${fit} bg-black`;
 
+  const candidate = big ? null : thumbUrl(resolved);
+  const still = candidate && candidate !== failedThumb ? candidate : null;
+  const src = still ?? resolved;
+
+  // Two-frame photo demos (gym machines/barbells) animate by cross-fading the
+  // start and end positions — same read as the bundled GIFs, no encoder needed.
+  // A still tile shows the start position only.
+  const frame2 = still ? null : secondFrameUrl(resolved);
+
   return (
     <div className={`${frame} ${dims}`}>
       <img
-        src={resolved}
+        key={src}
+        src={src}
         alt={`${name} demo`}
         loading="lazy"
-        onError={() => setErrored(true)}
+        decoding="async"
+        onError={() => (still ? setFailedThumb(still) : setErrored(true))}
         className={imgCls}
       />
       {frame2 && (
@@ -83,6 +96,7 @@ export default function ExerciseGif({
           alt=""
           aria-hidden="true"
           loading="lazy"
+          decoding="async"
           className={`${imgCls} animate-frame-swap`}
         />
       )}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import {
   getExerciseHistory,
   listExercises,
@@ -20,6 +22,9 @@ import { prettyDate } from "../lib/dates";
 export default function ExerciseDetail() {
   const { exerciseId } = useParams<{ exerciseId: string }>();
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.exercises(uid), cacheKey.workouts(uid));
   const nav = useNavigate();
   const [ex, setEx] = useState<Exercise | null | undefined>(undefined);
   const [history, setHistory] = useState<ExerciseHistoryEntry[] | null>(null);
@@ -41,7 +46,7 @@ export default function ExerciseDetail() {
     return () => {
       alive = false;
     };
-  }, [user, exerciseId]);
+  }, [user, exerciseId, dataVersion]);
 
   if (ex === undefined) {
     return <PageSkeleton rows={4} />;

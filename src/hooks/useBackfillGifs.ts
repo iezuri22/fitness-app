@@ -24,7 +24,9 @@ export function useBackfillGifs() {
 
     (async () => {
       try {
-        const exercises = await listExercises(user.uid);
+        // The server's copy: patching from a stale phone copy could replace a
+        // demo uploaded on another device with the bundled one.
+        const exercises = await listExercises(user.uid, { fresh: true });
         const updates = exercises
           .filter((e) => !e.gifUrl)
           .map((e) => ({ id: e.id, gifUrl: findGifForName(e.name) }))

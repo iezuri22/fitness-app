@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import { listExercises } from "../lib/db";
 import { BackLink, Card, Group, PageHeader, PageSkeleton, Row, SectionHeader, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
@@ -54,6 +56,9 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function BodyPartDetail({ part }: { part: BodyPart }) {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.exercises(uid));
   const [items, setItems] = useState<Exercise[] | null>(null);
   const guide = BODY_PART_GUIDE[part];
   const label = BODY_PARTS.find((b) => b.key === part)!.label;
@@ -68,7 +73,7 @@ function BodyPartDetail({ part }: { part: BodyPart }) {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [user, dataVersion]);
 
   // Banned movements sort last rather than disappearing — knowing what to avoid
   // for this area is part of studying it.

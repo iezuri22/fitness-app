@@ -7,6 +7,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocFromCache,
+  getDocFromServer,
+  getDocsFromCache,
+  arrayRemove,
+  arrayUnion,
   addDoc,
   setDoc,
   updateDoc,
@@ -18,17 +23,14 @@ import {
   limit,
   documentId,
   serverTimestamp,
+  type DocumentReference,
+  type Query,
   type QueryConstraint,
 } from "firebase/firestore";
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { db, storage } from "./firebase";
-import { cacheKey, cachedRead, invalidate } from "./dbCache";
+import { app, db } from "./firebase";
+import { cacheKey, cachedRead, invalidate, type LoadNote, type Source } from "./dbCache";
 import type { Exercise, PlannedSet, Workout, WorkoutTemplate } from "./types";
 import { todayStr } from "./dates";
-import { NOTION_EXERCISES } from "./notionExercises";
-import { HOME_EXERCISES } from "./homeExercises";
-import { GYM_EXERCISES } from "./gymExercises";
-import { findGifForName } from "./exerciseGifs";
 import { normalizeGoals, type WeeklyGoals } from "./weeklyGoals";
 import { slotOrder } from "./slots";
 import type { TrainingSignal } from "./trainingSignals";
@@ -39,27 +41,66 @@ const exercisesPath = (uid: string) => `${userRoot(uid)}/exercises`;
 const workoutsPath = (uid: string) => `${userRoot(uid)}/workouts`;
 const templatesPath = (uid: string) => `${userRoot(uid)}/templates`;
 
+/**
+ * Read from the device cache or the server. dbCache asks the device first and
+ * the server in the background — see dbCache.ts. Offline, Firestore answers a
+ * server read from the phone; the note tells dbCache not to trust it as fresh.
+ */
+async function readDocs(q: Query, from: Source, note?: LoadNote) {
+  if (from === "cache") return getDocsFromCache(q);
+  const snap = await getDocs(q);
+  if (note && snap.metadata.fromCache) note.fromCache = true;
+  return snap;
+}
+async function readDoc(r: DocumentReference, from: Source, note?: LoadNote) {
+  if (from === "cache") return getDocFromCache(r);
+  const snap = await getDoc(r);
+  if (note && snap.metadata.fromCache) note.fromCache = true;
+  return snap;
+}
+
+/** fresh: the server's answer, for code that writes or decides from what it reads. */
+type ReadOpts = { fresh?: boolean };
+
+/**
+ * Run a write and drop the cached reads it affects — once as it's issued, so
+ * the next read goes to the device cache (which already holds the write, even
+ * offline), and again when the server confirms it.
+ */
+async function write<T>(prefix: string, op: Promise<T>): Promise<T> {
+  invalidate(prefix);
+  try {
+    return await op;
+  } finally {
+    invalidate(prefix);
+  }
+}
+
 // ---------- Exercises ----------
 
-export async function listExercises(uid: string): Promise<Exercise[]> {
-  return cachedRead(cacheKey.exercises(uid), async () => {
-    const snap = await getDocs(
-      query(collection(db, exercisesPath(uid)), orderBy("name"))
+export async function listExercises(uid: string, opts: ReadOpts = {}): Promise<Exercise[]> {
+  return cachedRead(cacheKey.exercises(uid), async (from, note) => {
+    const snap = await readDocs(
+      query(collection(db, exercisesPath(uid)), orderBy("name")),
+      from,
+      note
     );
     return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Exercise, "id">) }));
-  });
+  }, opts);
 }
 
 export async function createExercise(
   uid: string,
   data: Omit<Exercise, "id" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(db, exercisesPath(uid)), {
-    ...data,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
-  invalidate(cacheKey.exercises(uid));
+  const ref = await write(
+    cacheKey.exercises(uid),
+    addDoc(collection(db, exercisesPath(uid)), {
+      ...data,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+  );
   return ref.id;
 }
 
@@ -68,16 +109,17 @@ export async function updateExercise(
   id: string,
   patch: Partial<Exercise>
 ): Promise<void> {
-  await updateDoc(doc(db, exercisesPath(uid), id), {
-    ...patch,
-    updatedAt: Date.now(),
-  });
-  invalidate(cacheKey.exercises(uid));
+  await write(
+    cacheKey.exercises(uid),
+    updateDoc(doc(db, exercisesPath(uid), id), {
+      ...patch,
+      updatedAt: Date.now(),
+    })
+  );
 }
 
 export async function deleteExercise(uid: string, id: string): Promise<void> {
-  await deleteDoc(doc(db, exercisesPath(uid), id));
-  invalidate(cacheKey.exercises(uid));
+  await write(cacheKey.exercises(uid), deleteDoc(doc(db, exercisesPath(uid), id)));
 }
 
 /**
@@ -114,7 +156,8 @@ export async function uploadExerciseGif(
   };
   const ext = extFromType[file.type];
   const path = `users/${uid}/exercise-gifs/${exerciseId}.${ext}`;
-  const ref = storageRef(storage, path);
+  const { getStorage, ref: storageRef, uploadBytes, getDownloadURL } = await import("firebase/storage");
+  const ref = storageRef(getStorage(app), path);
   try {
     await uploadBytes(ref, file, { contentType: file.type });
   } catch (e: unknown) {
@@ -140,6 +183,8 @@ export async function uploadExerciseGif(
 
 /** Remove any user-uploaded GIF for an exercise (best-effort — ignores 404s). */
 export async function removeExerciseGif(uid: string, exerciseId: string): Promise<void> {
+  const { getStorage, ref: storageRef, deleteObject } = await import("firebase/storage");
+  const storage = getStorage(app);
   for (const ext of ["gif", "png", "jpg", "webp"]) {
     try {
       await deleteObject(storageRef(storage, `users/${uid}/exercise-gifs/${exerciseId}.${ext}`));
@@ -148,62 +193,6 @@ export async function removeExerciseGif(uid: string, exerciseId: string): Promis
     }
   }
   await updateExercise(uid, exerciseId, { gifUrl: undefined });
-}
-
-/**
- * Combined catalog: Notion export (92) + curated home-workout hypertrophy set
- * (200+) + commercial-gym set (barbell/machine/cable/cardio). Home set is
- * filtered for Latarjet constraints (no behind-neck, no deep flys, etc.).
- */
-const CATALOG: typeof NOTION_EXERCISES = dedupeByName([
-  ...NOTION_EXERCISES,
-  ...HOME_EXERCISES,
-  ...GYM_EXERCISES,
-]);
-
-function dedupeByName<T extends { name: string }>(list: T[]): T[] {
-  const seen = new Set<string>();
-  const out: T[] = [];
-  for (const e of list) {
-    const k = normalizeExerciseName(e.name);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(e);
-  }
-  return out;
-}
-
-/** How many catalog entries aren't yet in the user's library. */
-export function countMissingCatalog(existing: Exercise[]): number {
-  const have = new Set(existing.map((e) => normalizeExerciseName(e.name)));
-  return CATALOG.filter((c) => !have.has(normalizeExerciseName(c.name))).length;
-}
-
-/**
- * One-shot import of the full catalog (Notion + curated home hypertrophy).
- * De-dupes by normalized name against whatever's already in the user's library
- * and only creates the missing ones. Safe to re-run — won't duplicate.
- * Returns the count of exercises actually created.
- */
-export async function importMissingNotionExercises(uid: string): Promise<number> {
-  const existing = await listExercises(uid);
-  const existingKeys = new Set(existing.map((e) => normalizeExerciseName(e.name)));
-  let created = 0;
-  for (const seed of CATALOG) {
-    if (existingKeys.has(normalizeExerciseName(seed.name))) continue;
-    // Prebake gifUrl so imports show demos immediately (same as first-run seed).
-    const gifUrl = seed.gifUrl ?? findGifForName(seed.name);
-    await createExercise(uid, gifUrl ? { ...seed, gifUrl } : seed);
-    created++;
-  }
-  return created;
-}
-
-function normalizeExerciseName(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
 }
 
 // ---------- Workouts ----------
@@ -251,32 +240,34 @@ export async function getWorkoutsByDate(
 
 export async function listWorkouts(
   uid: string,
-  opts: { limit?: number; extraConstraints?: QueryConstraint[] } = {}
+  opts: { limit?: number; extraConstraints?: QueryConstraint[] } & ReadOpts = {}
 ): Promise<Workout[]> {
-  const run = async () => {
+  const run = async (from: Source = "server", note?: LoadNote) => {
     const constraints: QueryConstraint[] = [
       orderBy("date", "desc"),
       ...(opts.extraConstraints ?? []),
     ];
     if (opts.limit) constraints.push(limit(opts.limit));
-    const snap = await getDocs(query(collection(db, workoutsPath(uid)), ...constraints));
+    const snap = await readDocs(query(collection(db, workoutsPath(uid)), ...constraints), from, note);
     return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Workout, "id">) }));
   };
   // Custom constraints can't be represented in a cache key, so they bypass it.
   if (opts.extraConstraints?.length) return run();
-  return cachedRead(cacheKey.workoutList(uid, opts.limit ?? 0), run);
+  return cachedRead(cacheKey.workoutList(uid, opts.limit ?? 0), run, { fresh: opts.fresh });
 }
 
 export async function createWorkout(
   uid: string,
   data: Omit<Workout, "id" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(db, workoutsPath(uid)), {
-    ...data,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
-  invalidate(cacheKey.workouts(uid));
+  const ref = await write(
+    cacheKey.workouts(uid),
+    addDoc(collection(db, workoutsPath(uid)), {
+      ...data,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+  );
   return ref.id;
 }
 
@@ -285,17 +276,39 @@ export async function saveWorkout(
   id: string,
   data: Partial<Workout>
 ): Promise<void> {
-  await setDoc(
-    doc(db, workoutsPath(uid), id),
-    { ...data, updatedAt: Date.now() },
-    { merge: true }
+  await write(
+    cacheKey.workouts(uid),
+    setDoc(doc(db, workoutsPath(uid), id), { ...data, updatedAt: Date.now() }, { merge: true })
   );
-  invalidate(cacheKey.workouts(uid));
+}
+
+/**
+ * Delete a workout only if it's still in the state this screen showed.
+ *
+ * A screen painted from the phone's copy can show a session as planned that
+ * was started or finished on another device since. Removing it from there
+ * would delete a finished workout — a historical record. So check the server
+ * first; if it has moved on, leave it alone and return false. Offline the
+ * check falls back to the phone's copy, which is what the screen showed.
+ */
+export async function deleteWorkoutIfUnchanged(
+  uid: string,
+  id: string,
+  expectedStatus: Workout["status"]
+): Promise<boolean> {
+  const ref = doc(db, workoutsPath(uid), id);
+  const snap = await getDocFromServer(ref).catch(() => getDoc(ref));
+  if (!snap.exists()) return true; // already gone
+  if ((snap.data() as Workout).status !== expectedStatus) {
+    invalidate(cacheKey.workouts(uid)); // the screen is behind; make its next read fresh
+    return false;
+  }
+  await deleteWorkout(uid, id);
+  return true;
 }
 
 export async function deleteWorkout(uid: string, id: string): Promise<void> {
-  await deleteDoc(doc(db, workoutsPath(uid), id));
-  invalidate(cacheKey.workouts(uid));
+  await write(cacheKey.workouts(uid), deleteDoc(doc(db, workoutsPath(uid), id)));
 }
 
 // ---------- Exercise history (cross-workout) ----------
@@ -348,18 +361,46 @@ export async function getExerciseHistory(
  */
 export async function getWeeklyGoals(uid: string): Promise<WeeklyGoals> {
   try {
-    const snap = await getDoc(doc(db, `${userRoot(uid)}/settings/weeklyGoals`));
-    return normalizeGoals(snap.exists() ? snap.data() : null);
+    return await cachedRead(
+      cacheKey.goals(uid),
+      async (from, note) => {
+        const snap = await readDoc(doc(db, `${userRoot(uid)}/settings/weeklyGoals`), from, note);
+        return normalizeGoals(snap.exists() ? snap.data() : null);
+      },
+      { trustEmpty: true }
+    );
   } catch {
     return normalizeGoals(null);
   }
 }
 
+/**
+ * Set one goal. Merges that field only, so a screen that painted slightly old
+ * goals can't write the others back over a newer change.
+ */
+export async function saveWeeklyGoal(
+  uid: string,
+  kind: keyof WeeklyGoals,
+  value: number
+): Promise<void> {
+  await write(
+    cacheKey.goals(uid),
+    setDoc(
+      doc(db, `${userRoot(uid)}/settings/weeklyGoals`),
+      { [kind]: normalizeGoals({ [kind]: value })[kind], updatedAt: Date.now() },
+      { merge: true }
+    )
+  );
+}
+
 export async function saveWeeklyGoals(uid: string, goals: WeeklyGoals): Promise<void> {
-  await setDoc(doc(db, `${userRoot(uid)}/settings/weeklyGoals`), {
-    ...normalizeGoals(goals),
-    updatedAt: Date.now(),
-  });
+  await write(
+    cacheKey.goals(uid),
+    setDoc(doc(db, `${userRoot(uid)}/settings/weeklyGoals`), {
+      ...normalizeGoals(goals),
+      updatedAt: Date.now(),
+    })
+  );
 }
 
 
@@ -382,30 +423,66 @@ export interface SupplementItem {
 
 export async function getSupplements(uid: string): Promise<SupplementItem[]> {
   try {
-    const snap = await getDoc(doc(db, `${userRoot(uid)}/settings/supplements`));
-    if (!snap.exists()) return [];
-    const raw = (snap.data()?.items ?? []) as SupplementItem[];
-    return [...raw].sort((a, b) => a.order - b.order);
+    return await cachedRead(
+      cacheKey.supplements(uid),
+      async (from, note) => {
+        const snap = await readDoc(doc(db, `${userRoot(uid)}/settings/supplements`), from, note);
+        if (!snap.exists()) return [];
+        const raw = (snap.data()?.items ?? []) as SupplementItem[];
+        return [...raw].sort((a, b) => a.order - b.order);
+      },
+      { trustEmpty: true }
+    );
   } catch {
     return [];
   }
 }
 
 export async function saveSupplements(uid: string, items: SupplementItem[]): Promise<void> {
-  await setDoc(doc(db, `${userRoot(uid)}/settings/supplements`), {
-    items: items.map((it, i) => ({ ...it, order: i })),
-    updatedAt: Date.now(),
-  });
+  await write(
+    cacheKey.supplements(uid),
+    setDoc(doc(db, `${userRoot(uid)}/settings/supplements`), {
+      items: items.map((it, i) => ({ ...it, order: i })),
+      updatedAt: Date.now(),
+    })
+  );
 }
 
 /** Ids taken on `date` (YYYY-MM-DD). Missing doc = nothing taken yet. */
 export async function getSupplementLog(uid: string, date: string): Promise<string[]> {
   try {
-    const snap = await getDoc(doc(db, `${userRoot(uid)}/supplementLogs/${date}`));
-    return snap.exists() ? ((snap.data()?.taken ?? []) as string[]) : [];
+    return await cachedRead(
+      cacheKey.supplementLog(uid, date),
+      async (from, note) => {
+        const snap = await readDoc(doc(db, `${userRoot(uid)}/supplementLogs/${date}`), from, note);
+        return snap.exists() ? ((snap.data()?.taken ?? []) as string[]) : [];
+      },
+      { trustEmpty: true }
+    );
   } catch {
     return [];
   }
+}
+
+/**
+ * Tick or untick one supplement for a day. The server merges it, so a tap on a
+ * screen that painted an older copy of the day can't erase ticks made
+ * elsewhere — rewriting the whole list could.
+ */
+export async function setSupplementTaken(
+  uid: string,
+  date: string,
+  id: string,
+  taken: boolean
+): Promise<void> {
+  await write(
+    cacheKey.supplements(uid),
+    setDoc(
+      doc(db, `${userRoot(uid)}/supplementLogs/${date}`),
+      { taken: taken ? arrayUnion(id) : arrayRemove(id), updatedAt: Date.now() },
+      { merge: true }
+    )
+  );
 }
 
 export async function saveSupplementLog(
@@ -413,10 +490,14 @@ export async function saveSupplementLog(
   date: string,
   taken: string[]
 ): Promise<void> {
-  await setDoc(doc(db, `${userRoot(uid)}/supplementLogs/${date}`), {
-    taken,
-    updatedAt: Date.now(),
-  });
+  // Log keys all start with supplements:<uid>, so the day and the range both go.
+  await write(
+    cacheKey.supplements(uid),
+    setDoc(doc(db, `${userRoot(uid)}/supplementLogs/${date}`), {
+      taken,
+      updatedAt: Date.now(),
+    })
+  );
 }
 
 /**
@@ -429,16 +510,20 @@ export async function listSupplementLogs(
   end: string
 ): Promise<Record<string, string[]>> {
   try {
-    const snap = await getDocs(
-      query(
-        collection(db, `${userRoot(uid)}/supplementLogs`),
-        where(documentId(), ">=", start),
-        where(documentId(), "<=", end)
-      )
-    );
-    const out: Record<string, string[]> = {};
-    for (const d of snap.docs) out[d.id] = (d.data()?.taken ?? []) as string[];
-    return out;
+    return await cachedRead(cacheKey.supplementLogs(uid, start, end), async (from, note) => {
+      const snap = await readDocs(
+        query(
+          collection(db, `${userRoot(uid)}/supplementLogs`),
+          where(documentId(), ">=", start),
+          where(documentId(), "<=", end)
+        ),
+        from,
+        note
+      );
+      const out: Record<string, string[]> = {};
+      for (const d of snap.docs) out[d.id] = (d.data()?.taken ?? []) as string[];
+      return out;
+    });
   } catch {
     return {};
   }
@@ -458,12 +543,16 @@ const MAX_SIGNALS = 200;
 
 const signalsDoc = (uid: string) => doc(db, `${userRoot(uid)}/meta/signals`);
 
-export async function getTrainingSignals(uid: string): Promise<TrainingSignal[]> {
-  return cachedRead(cacheKey.signals(uid), async () => {
-    const snap = await getDoc(signalsDoc(uid));
-    const raw = snap.exists() ? (snap.data().entries as unknown) : null;
-    return Array.isArray(raw) ? (raw as TrainingSignal[]) : [];
-  });
+export async function getTrainingSignals(uid: string, opts: ReadOpts = {}): Promise<TrainingSignal[]> {
+  return cachedRead(
+    cacheKey.signals(uid),
+    async (from, note) => {
+      const snap = await readDoc(signalsDoc(uid), from, note);
+      const raw = snap.exists() ? (snap.data().entries as unknown) : null;
+      return Array.isArray(raw) ? (raw as TrainingSignal[]) : [];
+    },
+    { trustEmpty: true, ...opts }
+  );
 }
 
 /** Append one signal. Safe to call from a delete handler — never throws. */
@@ -472,10 +561,11 @@ export async function recordTrainingSignal(
   signal: TrainingSignal
 ): Promise<void> {
   try {
-    const existing = await getTrainingSignals(uid);
+    // Read-modify-write: from the server's copy, or a stale phone copy would
+    // erase signals recorded elsewhere.
+    const existing = await getTrainingSignals(uid, { fresh: true });
     const entries = [...existing, signal].slice(-MAX_SIGNALS);
-    await setDoc(signalsDoc(uid), { entries, updatedAt: Date.now() });
-    invalidate(cacheKey.signals(uid));
+    await write(cacheKey.signals(uid), setDoc(signalsDoc(uid), { entries, updatedAt: Date.now() }));
   } catch (e) {
     // Losing a preference signal must never break the delete the user asked
     // for. Worst case the planner offers that routine again.
@@ -495,10 +585,9 @@ export async function clearTrainingSignals(
   uid: string,
   templateName: string
 ): Promise<void> {
-  const existing = await getTrainingSignals(uid);
+  const existing = await getTrainingSignals(uid, { fresh: true });
   const entries = existing.filter((s) => s.templateName !== templateName);
-  await setDoc(signalsDoc(uid), { entries, updatedAt: Date.now() });
-  invalidate(cacheKey.signals(uid));
+  await write(cacheKey.signals(uid), setDoc(signalsDoc(uid), { entries, updatedAt: Date.now() }));
 }
 
 // ---------- AMRAP scores ----------
@@ -525,7 +614,9 @@ export async function getAmrapHistory(
   templateId: string,
   max = 20
 ): Promise<AmrapResult[]> {
-  const workouts = await listWorkouts(uid, { limit: 200 });
+  // Fresh: the runner doesn't subscribe to refreshes, so a partial list from
+  // the phone would stick for the whole session.
+  const workouts = await listWorkouts(uid, { limit: 200, fresh: true });
   const out: AmrapResult[] = [];
   for (const w of workouts) {
     if (w.fromTemplateId !== templateId) continue;
@@ -546,9 +637,11 @@ export async function getAmrapHistory(
 // ---------- Workout Templates ----------
 
 export async function listTemplates(uid: string): Promise<WorkoutTemplate[]> {
-  return cachedRead(cacheKey.templates(uid), async () => {
-    const snap = await getDocs(
-      query(collection(db, templatesPath(uid)), orderBy("name"))
+  return cachedRead(cacheKey.templates(uid), async (from, note) => {
+    const snap = await readDocs(
+      query(collection(db, templatesPath(uid)), orderBy("name")),
+      from,
+      note
     );
     return snap.docs.map(
       (d) => ({ id: d.id, ...(d.data() as Omit<WorkoutTemplate, "id">) })
@@ -569,12 +662,14 @@ export async function createTemplate(
   uid: string,
   data: Omit<WorkoutTemplate, "id" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(db, templatesPath(uid)), {
-    ...data,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
-  invalidate(cacheKey.templates(uid));
+  const ref = await write(
+    cacheKey.templates(uid),
+    addDoc(collection(db, templatesPath(uid)), {
+      ...data,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+  );
   return ref.id;
 }
 
@@ -600,13 +695,11 @@ export async function saveTemplate(
   for (const [k, v] of Object.entries(patch)) {
     body[k] = v === null ? deleteField() : v;
   }
-  await setDoc(doc(db, templatesPath(uid), id), body, { merge: true });
-  invalidate(cacheKey.templates(uid));
+  await write(cacheKey.templates(uid), setDoc(doc(db, templatesPath(uid), id), body, { merge: true }));
 }
 
 export async function deleteTemplate(uid: string, id: string): Promise<void> {
-  await deleteDoc(doc(db, templatesPath(uid), id));
-  invalidate(cacheKey.templates(uid));
+  await write(cacheKey.templates(uid), deleteDoc(doc(db, templatesPath(uid), id)));
 }
 
 /**
@@ -673,20 +766,23 @@ export async function startWorkoutFromTemplate(
 export async function listWorkoutsInRange(
   uid: string,
   start: string,
-  end: string
+  end: string,
+  opts: ReadOpts = {}
 ): Promise<Workout[]> {
-  return cachedRead(cacheKey.workoutRange(uid, start, end), async () => {
-    const snap = await getDocs(
+  return cachedRead(cacheKey.workoutRange(uid, start, end), async (from, note) => {
+    const snap = await readDocs(
       query(
         collection(db, workoutsPath(uid)),
         where("date", ">=", start),
         where("date", "<=", end)
-      )
+      ),
+      from,
+      note
     );
     return snap.docs.map(
       (d) => ({ id: d.id, ...(d.data() as Omit<Workout, "id">) })
     );
-  });
+  }, opts);
 }
 
 // Re-export for convenience

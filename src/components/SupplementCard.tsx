@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import {
   getSupplementLog,
   getSupplements,
   listSupplementLogs,
-  saveSupplementLog,
+  setSupplementTaken,
   type SupplementItem,
 } from "../lib/db";
 import { Card, Group, Row, SectionHeader } from "../components/ui";
@@ -21,6 +23,9 @@ import { todayStr } from "../lib/dates";
  */
 export default function SupplementCard() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.supplements(uid));
   const [items, setItems] = useState<SupplementItem[] | null>(null);
   const [taken, setTaken] = useState<string[]>([]);
   const [history, setHistory] = useState<Record<string, string[]>>({});
@@ -44,15 +49,17 @@ export default function SupplementCard() {
     return () => {
       alive = false;
     };
-  }, [user, today]);
+  }, [user, today, dataVersion]);
 
   const toggle = useCallback(
     (id: string) => {
       if (!user) return;
       setTaken((prev) => {
-        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+        const on = !prev.includes(id);
+        const next = on ? [...prev, id] : prev.filter((x) => x !== id);
         setHistory((h) => ({ ...h, [today]: next }));
-        void saveSupplementLog(user.uid, today, next);
+        // One item, merged on the server — see setSupplementTaken.
+        void setSupplementTaken(user.uid, today, id, on);
         return next;
       });
     },

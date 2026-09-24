@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useOnboardingCheck } from "../hooks/useOnboardingCheck";
@@ -5,6 +6,7 @@ import { useBackfillGifs } from "../hooks/useBackfillGifs";
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
 import { useBack } from "../hooks/useBack";
 import SwipeBack from "./SwipeBack";
+import { preloadFor } from "../screens";
 import { PageSkeleton } from "./ui";
 
 /**
@@ -82,7 +84,11 @@ export default function AppShell() {
           to it. Wrapping the shell instead would drag the tab bar along. */}
       <main key={location.pathname} className="animate-fade-in flex-1 px-4 pb-8 pt-4">
         <SwipeBack onBack={() => goBack("/")}>
-          <Outlet />
+          {/* Screens are split into chunks (App.tsx); the first visit to one
+              that hasn't been prefetched yet shows the page skeleton. */}
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </SwipeBack>
       </main>
 
@@ -96,6 +102,8 @@ export default function AppShell() {
               key={to}
               to={to}
               end={end}
+              // Start the tab's chunk on touch-down, ahead of the tap.
+              onPointerDown={() => preloadFor(to)}
               className={({ isActive }) =>
                 `flex flex-1 flex-col items-center justify-center gap-[3px] pb-1.5 pt-2 text-[10px] font-medium transition-colors ${
                   isActive

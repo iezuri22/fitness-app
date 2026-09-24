@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import { createWorkout, listExercises } from "../lib/db";
 import { Button, Card, Input, Overlay, Tag } from "../components/ui";
 import ExerciseGif from "../components/ExerciseGif";
@@ -20,6 +22,9 @@ interface Draft {
 
 export default function NewWorkout() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.exercises(uid));
   const nav = useNavigate();
   const [title, setTitle] = useState("");
   const [focus, setFocus] = useState("Upper Body");
@@ -33,7 +38,7 @@ export default function NewWorkout() {
   useEffect(() => {
     if (!user) return;
     listExercises(user.uid).then(setExercises);
-  }, [user]);
+  }, [user, dataVersion]);
 
   // Auto-suggest a title from focus when title is empty
   useEffect(() => {

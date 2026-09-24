@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import { listWorkouts } from "../lib/db";
 import {
   EmptyState,
@@ -21,6 +23,9 @@ import type { Workout } from "../lib/types";
  */
 export default function Planned() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.workouts(uid));
   const [workouts, setWorkouts] = useState<Workout[] | null>(null);
 
   useEffect(() => {
@@ -37,7 +42,7 @@ export default function Planned() {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [user, dataVersion]);
 
   if (workouts === null) {
     return <PageSkeleton rows={5} />;

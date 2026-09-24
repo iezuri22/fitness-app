@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import {
   createTemplate,
   deleteTemplate,
-  deleteWorkout,
+  deleteWorkoutIfUnchanged,
   getWorkout,
-  importMissingNotionExercises,
   listExercises,
   listTemplates,
   recordTrainingSignal,
@@ -14,6 +15,7 @@ import {
   startWorkoutFromTemplate,
   type TemplatePatch,
 } from "../lib/db";
+import { importMissingNotionExercises } from "../lib/catalog";
 import {
   Button,
   Card,
@@ -42,7 +44,7 @@ import {
   findRetiredTemplates,
   resolveStarterTemplates,
 } from "../lib/starterTemplates";
-import { findGifForName } from "../lib/exerciseGifs";
+import { findGifForName, thumbUrl } from "../lib/exerciseGifs";
 import { estimatePlannedMinutes } from "../lib/timeEstimate";
 import type {
   Exercise,
@@ -140,6 +142,9 @@ const DURATIONS: { key: DurationKey; label: string; sub: string; min: number; ma
  */
 export default function Library() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.templates(uid), cacheKey.exercises(uid));
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const [templates, setTemplates] = useState<WorkoutTemplate[] | undefined>(undefined);
@@ -197,7 +202,7 @@ export default function Library() {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [user, dataVersion]);
 
   const gifByExerciseId = useMemo(() => {
     const m = new Map<string, string | undefined>();
@@ -492,10 +497,14 @@ export default function Library() {
         // rejection of what was there. Fetch it before deleting — this page
         // holds templates, not workouts.
         const replaced = await getWorkout(user.uid, replaceId);
+        // Only a plan is replaced. Today can show a slot from the phone's copy
+        // after it was started or finished on another device; that session is
+        // a record now, so the new pick is added beside it instead.
         if (replaced && replaced.status === "planned") {
-          await recordTrainingSignal(user.uid, signalFor(replaced, "replaced"));
+          if (await deleteWorkoutIfUnchanged(user.uid, replaceId, "planned")) {
+            await recordTrainingSignal(user.uid, signalFor(replaced, "replaced"));
+          }
         }
-        await deleteWorkout(user.uid, replaceId);
       }
       // Scheduling for a specific day (from the planner) lets the template's
       // own category decide the slot; slot-pick mode forces it.
@@ -1162,11 +1171,22 @@ function uniqueExercises(t: WorkoutTemplate): { id: string; name: string }[] {
 
 /** Small circular exercise demo for the template-card collage. */
 function MiniThumb({ name, gifUrl }: { name: string; gifUrl?: string }) {
-  const src = gifUrl || findGifForName(name);
+  const full = gifUrl || findGifForName(name);
+  // A 36pt circle: the still, not the full demo (see ExerciseGif). Falls back
+  // to the full file if the still is missing.
+  const [useFull, setUseFull] = useState(false);
+  const src = full && !useFull ? (thumbUrl(full) ?? full) : full;
   return (
     <div className="-ml-2.5 grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-black ring-2 ring-[color:var(--color-surface)] first:ml-0">
       {src ? (
-        <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setUseFull(true)}
+          className="h-full w-full object-cover"
+        />
       ) : (
         <span className="text-[11px] font-semibold text-white/30">
           {name.trim().charAt(0).toUpperCase()}

@@ -414,6 +414,16 @@ export function findGifForName(name: string): string | undefined {
 }
 
 /** Second frame path for a two-frame demo, or null for single-file media. */
+/**
+ * The small still for a bundled demo, made by scripts/make-thumbs.sh:
+ * /gifs/foo.gif → /gifs/thumbs/foo.webp. Uploaded demos (Storage URLs) have
+ * no still, so they return null and keep using the full file.
+ */
+export function thumbUrl(url: string): string | null {
+  const m = /^\/gifs\/([^/]+)\.(?:gif|jpe?g|png|webp)$/i.exec(url);
+  return m ? `/gifs/thumbs/${m[1]}.webp` : null;
+}
+
 export function secondFrameUrl(url: string): string | null {
   return url.endsWith("-0.jpg") ? url.replace(/-0\.jpg$/, "-1.jpg") : null;
 }

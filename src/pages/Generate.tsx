@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
 import { createWorkout, listExercises } from "../lib/db";
 import {
   Button,
@@ -38,6 +40,9 @@ import type { Exercise } from "../lib/types";
  */
 export default function Generate() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.exercises(uid));
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const planDate = searchParams.get("date");
@@ -58,7 +63,7 @@ export default function Generate() {
       if (alive) setLibrary(ex);
     })();
     return () => { alive = false; };
-  }, [user]);
+  }, [user, dataVersion]);
 
   const gifByExerciseId = useMemo(() => {
     const m = new Map<string, string | undefined>();

@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
-import {
-  listExercises,
-  createExercise,
-  importMissingNotionExercises,
-  countMissingCatalog,
-} from "../lib/db";
+import { useDataVersion } from "../hooks/useDataVersion";
+import { cacheKey } from "../lib/dbCache";
+import { listExercises, createExercise } from "../lib/db";
+import { countMissingCatalog, importMissingNotionExercises } from "../lib/catalog";
 import {
   Button,
   Card,
@@ -47,6 +45,9 @@ const CATEGORIES: ExerciseCategory[] = [
 
 export default function Exercises() {
   const { user } = useAuth();
+  // Re-read when a background refresh finds newer data (see useDataVersion).
+  const uid = user?.uid ?? "";
+  const dataVersion = useDataVersion(cacheKey.exercises(uid));
   const [items, setItems] = useState<Exercise[] | null>(null);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<ExerciseCategory | "All">("All");
@@ -71,7 +72,7 @@ export default function Exercises() {
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, dataVersion]);
 
   const filtered = useMemo(() => {
     if (!items) return [];
